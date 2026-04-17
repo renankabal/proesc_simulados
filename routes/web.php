@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::get('leitura', [LeituraController::class, 'index'])->name('leitura.index')
         ->middleware('role:admin,professor,operador');
     Route::get('resultados', [LeituraController::class, 'resultados'])->name('resultados.index');
+    Route::get('resultados/export', [LeituraController::class, 'exportCsv'])->name('resultados.export');
 });
 
 require __DIR__.'/auth.php';
