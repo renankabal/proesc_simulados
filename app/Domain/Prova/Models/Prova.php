@@ -5,6 +5,8 @@ namespace App\Domain\Prova\Models;
 use App\Domain\Cartao\Models\CartaoResposta;
 use App\Domain\Prova\Enums\StatusProva;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,9 +14,14 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Prova extends Model
 {
-    use \Illuminate\Database\Eloquent\Concerns\HasUuids;
+    use HasUuids, HasFactory;
 
     protected $table = 'provas';
+
+    protected static function newFactory(): \Database\Factories\ProvaFactory
+    {
+        return \Database\Factories\ProvaFactory::new();
+    }
 
     protected $fillable = [
         'user_id',
