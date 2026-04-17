@@ -14,14 +14,22 @@ class GerarCartaoAction
 
     public function execute(GerarCartaoDTO $dto): CartaoResposta
     {
-        $qrData = implode('|', [
-            $dto->provaId,
-            $dto->codigoAluno,
-            $dto->tentativa,
-            Str::random(8),
-        ]);
+        // Gera ID antecipadamente para incluí-lo no payload do QR
+        $id = (string) Str::uuid();
+
+        $prova = \App\Domain\Prova\Models\Prova::find($dto->provaId);
+
+        $qrData = json_encode([
+            'id'        => $id,
+            'codigo'    => $dto->codigoAluno,
+            'aluno'     => $dto->nomeAluno ?? $dto->codigoAluno,
+            'turma'     => $dto->turma ?? '',
+            'prova'     => $prova?->titulo ?? '',
+            'tentativa' => $dto->tentativa,
+        ], JSON_UNESCAPED_UNICODE);
 
         $cartao = CartaoResposta::create([
+            'id'           => $id,
             'prova_id'     => $dto->provaId,
             'codigo_aluno' => $dto->codigoAluno,
             'nome_aluno'   => $dto->nomeAluno,

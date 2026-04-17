@@ -137,7 +137,9 @@ async function fetchQrInfo(qr) {
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Cartão não encontrado.');
         const d = await res.json();
-        document.getElementById('qr-aluno').textContent = d.nome_aluno || d.codigo_aluno;
+        const nomeExibido = d.nome_aluno || d.codigo_aluno;
+        const turmaExibida = d.turma ? ' • Turma: ' + d.turma : '';
+        document.getElementById('qr-aluno').textContent = nomeExibido + turmaExibida;
         document.getElementById('qr-prova').textContent = d.prova.titulo + ' — ' + d.prova.total_questoes + ' questões';
         document.getElementById('qr-info').classList.remove('hidden');
         window._totalQuestoes = d.prova.total_questoes;

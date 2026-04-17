@@ -30,7 +30,7 @@ class LeituraApiController extends Controller
             'metadados'   => ['nullable', 'array'],
         ]);
 
-        $cartao = CartaoResposta::where('qr_data', $data['qr_data'])->first();
+        $cartao = $this->resolverCartaoPorQr($data['qr_data']);
 
         if (!$cartao) {
             return response()->json(['error' => 'QR Code não encontrado.'], 404);
@@ -64,7 +64,7 @@ class LeituraApiController extends Controller
     {
         $qrData = $request->validate(['qr_data' => ['required', 'string']])['qr_data'];
 
-        $cartao = CartaoResposta::with('prova')->where('qr_data', $qrData)->first();
+        $cartao = $this->resolverCartaoPorQr($qrData, withProva: true);
 
         if (!$cartao) {
             return response()->json(['error' => 'Cartão não encontrado.'], 404);
@@ -74,11 +74,40 @@ class LeituraApiController extends Controller
             'cartao_id'    => $cartao->id,
             'codigo_aluno' => $cartao->codigo_aluno,
             'nome_aluno'   => $cartao->nome_aluno,
+            'turma'        => $cartao->turma,
             'prova'        => [
                 'id'             => $cartao->prova->id,
                 'titulo'         => $cartao->prova->titulo,
                 'total_questoes' => $cartao->prova->total_questoes,
             ],
         ]);
+    }
+
+    /**
+     * Localiza o CartaoResposta a partir do conteúdo lido do QR Code.
+     *
+     * Suporta dois formatos:
+     *   - Novo (JSON): {"id":"uuid","codigo":"...","aluno":"...","turma":"..."}
+     *   - Legado (pipe): prova_id|codigo_aluno|tentativa|token
+     */
+    private function resolverCartaoPorQr(string $qrData, bool $withProva = false): ?CartaoResposta
+    {
+        $query = $withProva
+            ? CartaoResposta::with('prova')
+            : CartaoResposta::query();
+
+        // Formato JSON (novo): usa o campo 'id' para lookup eficiente por PK
+        if (str_starts_with(ltrim($qrData), '{')) {
+            $payload = json_decode($qrData, true);
+            if (!empty($payload['id'])) {
+                $cartao = $query->find($payload['id']);
+                if ($cartao) {
+                    return $cartao;
+                }
+            }
+        }
+
+        // Formato legado ou fallback: busca exata pelo campo qr_data
+        return $query->where('qr_data', $qrData)->first();
     }
 }
