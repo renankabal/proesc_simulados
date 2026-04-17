@@ -38,8 +38,36 @@
     </div>
 
     <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="font-semibold text-gray-700 mb-2">Cartões Gerados</h2>
-        <p class="text-3xl font-bold text-indigo-700">{{ $cartoes->total() }}</p>
+        <h2 class="font-semibold text-gray-700 mb-4">Gerar em Lote</h2>
+        <form action="{{ route('cartoes.lote', $prova) }}" method="POST" class="space-y-3">
+            @csrf
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Alunos (um por linha)</label>
+                <p class="text-xs text-gray-400 mb-1">Formato: <code>codigo,nome</code> ou só <code>codigo</code></p>
+                <textarea name="alunos" rows="6" required placeholder="ALU001,João Silva&#10;ALU002,Maria Santos&#10;ALU003"
+                    class="mt-1 w-full border rounded px-3 py-2 text-sm font-mono"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Turma</label>
+                    <input type="text" name="turma" value="{{ $prova->turma }}"
+                        class="mt-1 w-full border rounded px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Tentativa</label>
+                    <input type="number" name="tentativa" value="1" min="1"
+                        class="mt-1 w-full border rounded px-3 py-2 text-sm">
+                </div>
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 text-sm">
+                Gerar Lote e Baixar PDF
+            </button>
+        </form>
+
+        <div class="mt-4 pt-4 border-t">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Total de Cartões</p>
+            <p class="text-3xl font-bold text-indigo-700">{{ $cartoes->total() }}</p>
+        </div>
     </div>
 </div>
 

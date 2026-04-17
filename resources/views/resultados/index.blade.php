@@ -98,6 +98,9 @@
                 <td class="px-4 py-3 text-gray-400 text-xs hidden md:table-cell">
                     {{ $resultado->calculado_em?->format('d/m/Y H:i') }}
                 </td>
+                <td class="px-4 py-3">
+                    <a href="{{ route('resultados.show', $resultado) }}" class="text-indigo-500 hover:underline text-xs">Detalhe</a>
+                </td>
             </tr>
             @empty
             <tr>

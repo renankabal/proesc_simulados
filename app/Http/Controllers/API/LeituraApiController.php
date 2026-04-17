@@ -49,7 +49,9 @@ class LeituraApiController extends Controller
 
         return response()->json([
             'leitura_id'    => $leitura->id,
+            'resultado_url' => route('resultados.show', $resultado),
             'resultado'     => [
+                'id'                => $resultado->id,
                 'total_acertos'     => $resultado->total_acertos,
                 'total_questoes'    => $resultado->total_questoes,
                 'nota_final'        => $resultado->nota_final,
