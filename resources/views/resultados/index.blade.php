@@ -6,7 +6,7 @@
 <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-800">Resultados</h1>
     <a href="{{ route('resultados.export', request()->query()) }}"
-       class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700">
+       class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700">
         Exportar CSV
     </a>
 </div>
@@ -28,7 +28,7 @@
             class="w-full border rounded px-3 py-2 text-sm">
     </div>
     <div class="flex gap-2">
-        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700">Filtrar</button>
+        <button type="submit" class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700">Filtrar</button>
         <a href="{{ route('resultados.index') }}" class="border px-4 py-2 rounded text-sm text-gray-600 hover:bg-gray-50">Limpar</a>
     </div>
 </form>
@@ -43,7 +43,7 @@
 <div class="grid grid-cols-3 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-4 text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Média da Página</p>
-        <p class="text-2xl font-bold text-indigo-700">{{ number_format($media, 1) }}</p>
+        <p class="text-2xl font-bold text-green-700">{{ number_format($media, 1) }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4 text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Maior Nota</p>
@@ -99,7 +99,7 @@
                     {{ $resultado->calculado_em?->format('d/m/Y H:i') }}
                 </td>
                 <td class="px-4 py-3">
-                    <a href="{{ route('resultados.show', $resultado) }}" class="text-indigo-500 hover:underline text-xs">Detalhe</a>
+                    <a href="{{ route('resultados.show', $resultado) }}" class="text-green-500 hover:underline text-xs">Detalhe</a>
                 </td>
             </tr>
             @empty

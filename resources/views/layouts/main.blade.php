@@ -4,39 +4,46 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', config('app.name', 'Proesc Simulados'))</title>
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet"/>
+    <title>@yield('title', config('app.name', 'Proesc Simulados')) — Proesc</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="font-sans antialiased bg-gray-100 min-h-screen">
+<body class="font-sans antialiased bg-gray-50 min-h-screen">
 
-<nav class="bg-indigo-700 text-white px-6 py-3 flex items-center justify-between shadow">
-    <a href="{{ route('provas.index') }}" class="font-bold text-lg tracking-wide">Proesc Simulados</a>
-    <div class="flex items-center gap-5 text-sm">
-        <a href="{{ route('provas.index') }}" class="hover:text-indigo-200">Provas</a>
-        <a href="{{ route('leitura.index') }}" class="hover:text-indigo-200">Leitura</a>
-        <a href="{{ route('resultados.index') }}" class="hover:text-indigo-200">Resultados</a>
-        @auth
-        <span class="opacity-60 text-xs">{{ auth()->user()->name }}</span>
-        <form method="POST" action="{{ route('logout') }}" class="inline">
-            @csrf
-            <button class="hover:text-indigo-200 text-sm">Sair</button>
-        </form>
-        @endauth
+<nav class="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
+        <a href="{{ route('provas.index') }}" class="flex items-center gap-2 group">
+            <span class="text-green-600 font-black text-xl tracking-tight group-hover:text-green-700 transition-colors">proesc</span>
+            <span class="text-gray-300 font-light text-lg">|</span>
+            <span class="text-gray-500 text-sm font-semibold tracking-wide">simulados</span>
+        </a>
+        <div class="flex items-center gap-6 text-sm font-medium">
+            <a href="{{ route('provas.index') }}" class="text-gray-600 hover:text-green-600 transition-colors">Provas</a>
+            <a href="{{ route('leitura.index') }}" class="text-gray-600 hover:text-green-600 transition-colors">Leitura</a>
+            <a href="{{ route('resultados.index') }}" class="text-gray-600 hover:text-green-600 transition-colors">Resultados</a>
+            @auth
+            <span class="text-gray-400 text-xs border-l border-gray-200 pl-4">{{ auth()->user()->name }}</span>
+            <form method="POST" action="{{ route('logout') }}" class="inline">
+                @csrf
+                <button class="text-gray-400 hover:text-red-500 transition-colors text-sm">Sair</button>
+            </form>
+            @endauth
+        </div>
     </div>
 </nav>
 
 <main class="max-w-6xl mx-auto px-4 py-8">
     @if (session('success'))
-        <div class="mb-4 bg-green-100 border border-green-400 text-green-800 px-4 py-3 rounded">
-            {{ session('success') }}
+        <div class="mb-5 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl flex items-center gap-2 text-sm shadow-sm">
+            <span class="text-green-500 font-bold text-base">✓</span> {{ session('success') }}
         </div>
     @endif
     @if (session('error'))
-        <div class="mb-4 bg-red-100 border border-red-400 text-red-800 px-4 py-3 rounded">
-            {{ session('error') }}
+        <div class="mb-5 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl flex items-center gap-2 text-sm shadow-sm">
+            <span class="text-red-500 font-bold text-base">✗</span> {{ session('error') }}
         </div>
     @endif
 

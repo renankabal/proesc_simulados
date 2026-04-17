@@ -31,7 +31,7 @@
                 <input type="text" name="turma" value="{{ $prova->turma }}"
                     class="mt-1 w-full border rounded px-3 py-2 text-sm">
             </div>
-            <button type="submit" class="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 text-sm">
+            <button type="submit" class="w-full bg-purple-600 text-white py-2.5 rounded-full hover:bg-purple-700 text-sm font-semibold">
                 Gerar e Baixar PDF
             </button>
         </form>
@@ -59,14 +59,14 @@
                         class="mt-1 w-full border rounded px-3 py-2 text-sm">
                 </div>
             </div>
-            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 text-sm">
+            <button type="submit" class="w-full bg-green-600 text-white py-2.5 rounded-full hover:bg-green-700 text-sm font-semibold">
                 Gerar Lote e Baixar PDF
             </button>
         </form>
 
         <div class="mt-4 pt-4 border-t">
             <p class="text-xs text-gray-500 uppercase tracking-wide">Total de Cartões</p>
-            <p class="text-3xl font-bold text-indigo-700">{{ $cartoes->total() }}</p>
+            <p class="text-3xl font-bold text-green-700">{{ $cartoes->total() }}</p>
         </div>
     </div>
 </div>

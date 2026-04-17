@@ -1,7 +1,7 @@
 <div>
     <label class="block text-sm font-medium text-gray-700">Título *</label>
     <input type="text" name="titulo" value="{{ old('titulo', $prova->titulo ?? '') }}"
-        class="mt-1 w-full border rounded px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 @error('titulo') border-red-400 @enderror">
+        class="mt-1 w-full border rounded px-3 py-2 focus:ring-green-500 focus:border-green-500 @error('titulo') border-red-400 @enderror">
     @error('titulo') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
 </div>
 

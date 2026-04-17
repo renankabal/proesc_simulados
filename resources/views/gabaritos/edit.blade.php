@@ -28,7 +28,7 @@
             <div class="text-center">
                 <p class="text-xs text-gray-400 mb-1">{{ $i }}</p>
                 <select name="respostas[{{ $i }}]"
-                    class="w-full border rounded px-1 py-1 text-sm text-center focus:ring-indigo-400">
+                    class="w-full border rounded px-1 py-1 text-sm text-center focus:ring-green-400">
                     <option value="">-</option>
                     @foreach (['A','B','C','D','E'] as $letra)
                     <option value="{{ $letra }}" {{ $atual === $letra ? 'selected' : '' }}>{{ $letra }}</option>
@@ -39,8 +39,8 @@
         </div>
 
         <div class="flex justify-end gap-3 pt-6">
-            <a href="{{ route('provas.show', $prova) }}" class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancelar</a>
-            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">Salvar Gabarito</button>
+            <a href="{{ route('provas.show', $prova) }}" class="px-4 py-2 border rounded-full text-gray-600 hover:bg-gray-50">Cancelar</a>
+            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-full hover:bg-green-700 font-semibold">Salvar Gabarito</button>
         </div>
     </form>
 </div>

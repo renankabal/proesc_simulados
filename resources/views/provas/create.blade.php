@@ -11,8 +11,8 @@
         @include('provas._form')
 
         <div class="flex justify-end gap-3 pt-2">
-            <a href="{{ route('provas.index') }}" class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancelar</a>
-            <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700">Criar Prova</button>
+            <a href="{{ route('provas.index') }}" class="px-4 py-2 border rounded-full text-gray-600 hover:bg-gray-50">Cancelar</a>
+            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-full hover:bg-green-700 font-semibold">Criar Prova</button>
         </div>
     </form>
 </div>

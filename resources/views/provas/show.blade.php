@@ -16,25 +16,25 @@
         </p>
     </div>
     <div class="flex gap-2 text-sm flex-wrap justify-end">
-        <a href="{{ route('provas.edit', $prova) }}" class="bg-yellow-500 text-white px-3 py-2 rounded hover:bg-yellow-600">Editar</a>
-        <a href="{{ route('provas.gabarito.edit', $prova) }}" class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700">Gabarito</a>
-        <a href="{{ route('cartoes.index', $prova) }}" class="bg-purple-600 text-white px-3 py-2 rounded hover:bg-purple-700">Cartões</a>
-        <a href="{{ route('provas.relatorio', $prova) }}" class="bg-indigo-600 text-white px-3 py-2 rounded hover:bg-indigo-700">Relatório</a>
+        <a href="{{ route('provas.edit', $prova) }}" class="bg-yellow-500 text-white px-4 py-1.5 rounded-full text-xs hover:bg-yellow-600">Editar</a>
+        <a href="{{ route('provas.gabarito.edit', $prova) }}" class="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs hover:bg-green-700">Gabarito</a>
+        <a href="{{ route('cartoes.index', $prova) }}" class="bg-purple-600 text-white px-4 py-1.5 rounded-full text-xs hover:bg-purple-700">Cartões</a>
+        <a href="{{ route('provas.relatorio', $prova) }}" class="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs hover:bg-green-700">Relatório</a>
     </div>
 </div>
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Nota Máxima</p>
-        <p class="text-2xl font-bold text-indigo-700">{{ number_format($prova->nota_maxima, 1) }}</p>
+        <p class="text-2xl font-bold text-green-700">{{ number_format($prova->nota_maxima, 1) }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Cartões</p>
-        <p class="text-2xl font-bold text-indigo-700">{{ $prova->cartoes->count() }}</p>
+        <p class="text-2xl font-bold text-green-700">{{ $prova->cartoes->count() }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Questões</p>
-        <p class="text-2xl font-bold text-indigo-700">{{ $prova->questoes->count() }}/{{ $prova->total_questoes }}</p>
+        <p class="text-2xl font-bold text-green-700">{{ $prova->questoes->count() }}/{{ $prova->total_questoes }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Gabarito</p>
@@ -71,7 +71,7 @@
             @endfor
         </div>
         <div class="flex justify-end">
-            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700">
+            <button type="submit" class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700">
                 Salvar Questões
             </button>
         </div>
@@ -85,7 +85,7 @@
         @foreach ($prova->gabaritoAtivo->respostas as $num => $letra)
         @php $anulada = $prova->questoes->firstWhere('numero', (int)$num)?->anulada; @endphp
         <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded
-            {{ $anulada ? 'bg-red-100 text-red-400 line-through' : 'bg-indigo-50 text-indigo-700' }}">
+            {{ $anulada ? 'bg-red-100 text-red-400 line-through' : 'bg-green-50 text-green-700' }}">
             <span class="text-gray-400">{{ $num }}.</span> {{ $letra }}
         </span>
         @endforeach

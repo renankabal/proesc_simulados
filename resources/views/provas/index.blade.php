@@ -6,7 +6,7 @@
 <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-800">Provas</h1>
     @can('create', \App\Domain\Prova\Models\Prova::class)
-    <a href="{{ route('provas.create') }}" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+    <a href="{{ route('provas.create') }}" class="bg-green-600 text-white px-5 py-2 rounded-full hover:bg-green-700">
         + Nova Prova
     </a>
     @endcan
@@ -26,7 +26,7 @@
             </p>
         </div>
         <div class="flex items-center gap-2 text-sm">
-            <a href="{{ route('provas.show', $prova) }}" class="text-indigo-600 hover:underline">Ver</a>
+            <a href="{{ route('provas.show', $prova) }}" class="text-green-600 hover:underline">Ver</a>
             <a href="{{ route('provas.edit', $prova) }}" class="text-yellow-600 hover:underline">Editar</a>
             <a href="{{ route('provas.gabarito.edit', $prova) }}" class="text-green-600 hover:underline">Gabarito</a>
             <a href="{{ route('cartoes.index', $prova) }}" class="text-purple-600 hover:underline">Cartões</a>

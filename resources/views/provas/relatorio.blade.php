@@ -9,7 +9,7 @@
         <h1 class="text-2xl font-bold text-gray-800 mt-1">Relatório da Prova</h1>
     </div>
     <a href="{{ route('resultados.export', ['prova_id' => $prova->id]) }}"
-       class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700">Exportar CSV</a>
+       class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700">Exportar CSV</a>
 </div>
 
 @if ($stats['total'] === 0)
@@ -22,11 +22,11 @@
 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
     <div class="bg-white rounded-lg shadow p-4 text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Leituras</p>
-        <p class="text-3xl font-bold text-indigo-700">{{ $stats['total'] }}</p>
+        <p class="text-3xl font-bold text-green-700">{{ $stats['total'] }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4 text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Média</p>
-        <p class="text-3xl font-bold text-indigo-700">{{ number_format($stats['media'], 1) }}</p>
+        <p class="text-3xl font-bold text-green-700">{{ number_format($stats['media'], 1) }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4 text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Maior</p>
@@ -52,7 +52,7 @@
         @php $altura = round($count / $maxFaixa * 100); @endphp
         <div class="flex-1 flex flex-col items-center gap-1">
             <span class="text-xs font-bold text-gray-600">{{ $count }}</span>
-            <div class="w-full bg-indigo-500 rounded-t transition-all"
+            <div class="w-full bg-green-500 rounded-t transition-all"
                  style="height: {{ $altura }}%"></div>
             <span class="text-xs text-gray-400">{{ $label }}</span>
         </div>
@@ -109,7 +109,7 @@
                 </td>
                 <td class="px-4 py-3 text-right text-gray-500 text-xs">{{ number_format($pct, 1) }}%</td>
                 <td class="px-4 py-3">
-                    <a href="{{ route('resultados.show', $resultado) }}" class="text-indigo-500 hover:underline text-xs">Ver detalhe</a>
+                    <a href="{{ route('resultados.show', $resultado) }}" class="text-green-500 hover:underline text-xs">Ver detalhe</a>
                 </td>
             </tr>
             @endforeach

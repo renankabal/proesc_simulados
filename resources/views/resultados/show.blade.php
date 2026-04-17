@@ -16,7 +16,7 @@
         </p>
     </div>
     <a href="{{ route('resultados.export', ['prova_id' => $prova->id]) }}"
-       class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700">CSV da Prova</a>
+       class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700">CSV da Prova</a>
 </div>
 
 {{-- KPIs --}}
@@ -30,7 +30,7 @@
     </div>
     <div class="bg-white rounded-lg shadow p-5 text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Aproveitamento</p>
-        <p class="text-4xl font-bold text-indigo-700 mt-1">{{ number_format($resultado->percentual_acerto, 1) }}%</p>
+        <p class="text-4xl font-bold text-green-700 mt-1">{{ number_format($resultado->percentual_acerto, 1) }}%</p>
     </div>
     <div class="bg-white rounded-lg shadow p-5 text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wide">Acertos / Total</p>

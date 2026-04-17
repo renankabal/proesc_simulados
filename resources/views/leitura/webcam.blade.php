@@ -18,23 +18,23 @@
 
             <div class="mt-3 flex flex-wrap items-center gap-2">
                 <button onclick="startCamera()" id="btnStart"
-                    class="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700">
+                    class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700">
                     Iniciar Câmera
                 </button>
                 <button onclick="captureFrame()" id="btnCapture" disabled
-                    class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-40">
+                    class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700 disabled:opacity-40 font-semibold">
                     Capturar
                 </button>
                 <button onclick="resetar()"
-                    class="border px-4 py-2 rounded text-sm text-gray-600 hover:bg-gray-50">
+                    class="border px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-50">
                     Resetar
                 </button>
                 <span id="status-text" class="text-xs text-gray-400">Aguardando câmera...</span>
             </div>
 
-            <div id="qr-info" class="hidden mt-3 bg-indigo-50 rounded p-3 text-sm">
-                <p class="font-semibold text-indigo-800" id="qr-aluno"></p>
-                <p class="text-indigo-600 text-xs mt-0.5" id="qr-prova"></p>
+            <div id="qr-info" class="hidden mt-3 bg-green-50 rounded p-3 text-sm">
+                <p class="font-semibold text-green-800" id="qr-aluno"></p>
+                <p class="text-green-600 text-xs mt-0.5" id="qr-prova"></p>
             </div>
 
             <div id="error-box" class="hidden mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700"></div>
@@ -54,12 +54,12 @@
                 <p id="nota-final" class="text-4xl font-bold text-green-700 my-1"></p>
                 <p id="acertos-info" class="text-gray-600 text-sm"></p>
                 <p id="percentual-info" class="text-gray-500 text-xs mt-1"></p>
-                <a id="link-resultado" href="#" class="text-indigo-500 text-xs hover:underline mt-2 inline-block">Ver detalhe completo →</a>
+                <a id="link-resultado" href="#" class="text-green-500 text-xs hover:underline mt-2 inline-block">Ver detalhe completo →</a>
             </div>
 
             <div class="mt-4 flex gap-2 pt-2 border-t">
                 <button onclick="enviarLeitura()" id="btnEnviar" disabled
-                    class="flex-1 bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-40">
+                    class="flex-1 bg-green-600 text-white py-2.5 rounded-full text-sm hover:bg-green-700 disabled:opacity-40 font-semibold">
                     Confirmar Leitura
                 </button>
             </div>
@@ -70,20 +70,20 @@
 {{-- Modal de edição manual --}}
 <div id="modal-edicao" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-xl p-6 w-72">
-        <h3 class="font-semibold text-gray-800 mb-1">Corrigir Questão <span id="modal-q-num" class="text-indigo-600"></span></h3>
+        <h3 class="font-semibold text-gray-800 mb-1">Corrigir Questão <span id="modal-q-num" class="text-green-600"></span></h3>
         <p class="text-xs text-gray-400 mb-4">Escolha a resposta correta ou marque como branco</p>
         <div class="grid grid-cols-5 gap-2 mb-4">
             @foreach (['A','B','C','D','E'] as $l)
             <button onclick="selecionarLetra('{{ $l }}')"
-                class="letra-btn py-2 rounded border-2 border-gray-200 font-bold text-gray-700 hover:border-indigo-500 hover:bg-indigo-50 transition"
+                class="letra-btn py-2 rounded border-2 border-gray-200 font-bold text-gray-700 hover:border-green-500 hover:bg-green-50 transition"
                 data-letra="{{ $l }}">{{ $l }}</button>
             @endforeach
         </div>
         <div class="flex gap-2">
             <button onclick="selecionarLetra(null)"
-                class="flex-1 py-2 rounded border text-sm text-gray-500 hover:bg-gray-50">Em branco</button>
+                class="flex-1 py-2 rounded-full border text-sm text-gray-500 hover:bg-gray-50">Em branco</button>
             <button onclick="fecharModal()"
-                class="flex-1 py-2 rounded bg-gray-100 text-sm text-gray-600 hover:bg-gray-200">Cancelar</button>
+                class="flex-1 py-2 rounded-full bg-gray-100 text-sm text-gray-600 hover:bg-gray-200">Cancelar</button>
         </div>
     </div>
 </div>
@@ -209,7 +209,7 @@ function renderRespostas() {
         const cor  = r.dupla_marcacao ? 'bg-yellow-100 border-yellow-400 text-yellow-800'
                    : r.em_branco     ? 'bg-gray-100 border-gray-300 text-gray-400'
                    : r.corrigida_manual ? 'bg-blue-100 border-blue-400 text-blue-800'
-                   : 'bg-indigo-50 border-indigo-200 text-indigo-800';
+                   : 'bg-green-50 border-green-200 text-green-800';
         div.className = `border rounded p-1 text-center cursor-pointer hover:opacity-80 transition ${cor}`;
         div.innerHTML = `<p class="text-gray-400 text-xs">${r.questao_numero}</p>
                          <p class="font-bold text-sm">${r.marcacao || (r.dupla_marcacao ? '!!' : '—')}</p>`;
@@ -223,8 +223,8 @@ function abrirModal(num) {
     document.getElementById('modal-q-num').textContent = num;
     const atual = respostas.find(r => r.questao_numero === num)?.marcacao;
     document.querySelectorAll('.letra-btn').forEach(btn => {
-        btn.classList.toggle('border-indigo-600', btn.dataset.letra === atual);
-        btn.classList.toggle('bg-indigo-100', btn.dataset.letra === atual);
+        btn.classList.toggle('border-green-600', btn.dataset.letra === atual);
+        btn.classList.toggle('bg-green-100', btn.dataset.letra === atual);
     });
     document.getElementById('modal-edicao').classList.remove('hidden');
 }
