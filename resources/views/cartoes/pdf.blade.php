@@ -70,6 +70,9 @@
   table.grid td { text-align: center; padding: 4px 2px; border: 1px solid #ccc; font-size: 10pt; }
   .circle { display: inline-block; width: 20px; height: 20px; border: 1.5px solid #333; border-radius: 50%; line-height: 20px; font-size: 9pt; cursor: default; }
   .num { font-size: 9pt; font-weight: bold; color: #555; }
+  /* Marcadores de linha para âncora OMR */
+  th.mc, td.mc { width: 14px; border: none; background: transparent; padding: 0 2px; }
+  .marc { display: block; width: 10px; height: 18px; background: #000; margin: 0 auto; }
 
   /* Rodapé */
   .instructions { font-size: 8pt; color: #666; margin-top: 10px; border-top: 1px solid #c3e6cf; padding-top: 6px; }
@@ -90,8 +93,14 @@
 {{-- Bloco de identificação com QR --}}
 <div class="identificacao">
     <div class="qr-col">
-        {!! QrCode::size(110)->generate($cartao->qr_data) !!}
-        <p>Leia com a câmera para identificar o aluno</p>
+        @php
+            $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::size(110)
+                        ->errorCorrection('M')
+                        ->generate($cartao->qr_data);
+            $qrUri = 'data:image/svg+xml;base64,' . base64_encode($qrSvg);
+        @endphp
+        <img src="{{ $qrUri }}" width="110" height="110" alt="QR Code">
+        <p>Escaneie para ver dados do aluno e turma</p>
     </div>
     <div class="dados-col">
         <div class="label">Aluno</div>
@@ -130,6 +139,7 @@
 <table class="grid">
     <thead>
         <tr>
+            <th class="mc"></th>
             <th>Nº</th>
             <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>
             <th style="width:10px">&nbsp;</th>
@@ -142,6 +152,7 @@
         @for ($i = 1; $i <= $half; $i++)
         @php $j = $i + $half; @endphp
         <tr>
+            <td class="mc"><div class="marc"></div></td>
             <td class="num">{{ $i }}</td>
             @foreach (['A','B','C','D','E'] as $l)
             <td><span class="circle">{{ $l }}</span></td>

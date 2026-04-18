@@ -4,9 +4,7 @@ namespace App\Application\Actions\Cartao;
 
 use App\Application\DTOs\GerarCartaoDTO;
 use App\Domain\Cartao\Models\CartaoResposta;
-use App\Domain\Prova\Models\Prova;
 use App\Support\Traits\HasAuditLog;
-use Illuminate\Support\Str;
 
 class GerarCartaoAction
 {
@@ -14,30 +12,21 @@ class GerarCartaoAction
 
     public function execute(GerarCartaoDTO $dto): CartaoResposta
     {
-        // Gera ID antecipadamente para incluí-lo no payload do QR
-        $id = (string) Str::uuid();
-
-        $prova = \App\Domain\Prova\Models\Prova::find($dto->provaId);
-
-        $qrData = json_encode([
-            'id'        => $id,
-            'codigo'    => $dto->codigoAluno,
-            'aluno'     => $dto->nomeAluno ?? $dto->codigoAluno,
-            'turma'     => $dto->turma ?? '',
-            'prova'     => $prova?->titulo ?? '',
-            'tentativa' => $dto->tentativa,
-        ], JSON_UNESCAPED_UNICODE);
-
+        // Cria primeiro — HasUuids gera o ID real via evento creating
+        // (id não está em $fillable, então pré-gerar um UUID separado causaria divergência)
         $cartao = CartaoResposta::create([
-            'id'           => $id,
             'prova_id'     => $dto->provaId,
             'codigo_aluno' => $dto->codigoAluno,
             'nome_aluno'   => $dto->nomeAluno,
             'turma'        => $dto->turma,
             'tentativa'    => $dto->tentativa,
-            'qr_data'      => $qrData,
+            'qr_data'      => 'tmp',
             'gerado_por'   => $dto->geradoPor,
         ]);
+
+        // Usa o ID gerado pelo Eloquent como qr_data — garante que QR e PK são iguais
+        $cartao->qr_data = $cartao->id;
+        $cartao->save();
 
         static::logInfo('cartao.gerado', 'cartoes_resposta', $cartao->id, [
             'prova_id'     => $dto->provaId,

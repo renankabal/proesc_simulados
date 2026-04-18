@@ -4,49 +4,68 @@
 
 @section('content')
 <div class="max-w-6xl mx-auto">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">Leitura via Webcam</h1>
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">Leitura de Cartão-Resposta</h1>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {{-- Camera --}}
+        {{-- Upload --}}
         <div class="bg-white rounded-lg shadow p-4">
-            <div class="relative bg-black rounded overflow-hidden" style="aspect-ratio:4/3">
-                <video id="video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+            <div id="upload-area"
+                class="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer hover:border-green-400 transition-colors"
+                style="aspect-ratio:4/3"
+                onclick="document.getElementById('fileInput').click()"
+                ondragover="event.preventDefault(); this.classList.add('border-green-400','bg-green-50')"
+                ondragleave="this.classList.remove('border-green-400','bg-green-50')"
+                ondrop="event.preventDefault(); this.classList.remove('border-green-400','bg-green-50'); processarArquivo(event.dataTransfer.files[0])">
+
+                <div id="upload-placeholder" class="text-center p-6 pointer-events-none">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-600 font-medium">Clique ou arraste a foto do cartão</p>
+                    <p class="text-xs text-gray-400 mt-1">JPG ou PNG — até 10MB</p>
+                </div>
+
+                <img id="preview-img" class="hidden max-w-full max-h-full object-contain pointer-events-none" alt="Preview">
                 <canvas id="canvas" class="hidden"></canvas>
-                <div id="qr-border" class="absolute inset-0 border-4 border-yellow-400 pointer-events-none opacity-0 rounded transition-all"></div>
             </div>
 
+            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/*" class="hidden"
+                onchange="processarArquivo(this.files[0])">
+
             <div class="mt-3 flex flex-wrap items-center gap-2">
-                <button onclick="startCamera()" id="btnStart"
-                    class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700">
-                    Iniciar Câmera
+                <button onclick="document.getElementById('fileInput').click()"
+                    class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700 font-semibold">
+                    Selecionar Imagem
                 </button>
-                <button onclick="captureFrame()" id="btnCapture" disabled
+                <button onclick="executarLeitura()" id="btnLer" disabled
                     class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700 disabled:opacity-40 font-semibold">
-                    Capturar
+                    Ler Cartão
                 </button>
                 <button onclick="resetar()"
                     class="border px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-50">
                     Resetar
                 </button>
-                <span id="status-text" class="text-xs text-gray-400">Aguardando câmera...</span>
+                <span id="status-text" class="text-xs text-gray-400">Aguardando imagem...</span>
             </div>
 
             <div id="qr-info" class="hidden mt-3 bg-green-50 rounded p-3 text-sm">
                 <p class="font-semibold text-green-800" id="qr-aluno"></p>
+                <p class="text-green-600 text-xs mt-0.5" id="qr-turma"></p>
                 <p class="text-green-600 text-xs mt-0.5" id="qr-prova"></p>
             </div>
+
 
             <div id="error-box" class="hidden mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700"></div>
         </div>
 
-        {{-- Respostas + Confirmar --}}
+        {{-- Respostas --}}
         <div class="bg-white rounded-lg shadow p-4 flex flex-col">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="font-semibold text-gray-700">Respostas Detectadas</h2>
                 <span class="text-xs text-gray-400">Clique em uma célula para corrigir</span>
             </div>
-
             <div id="respostas-grid" class="grid grid-cols-5 gap-1 text-xs flex-1 content-start"></div>
 
             <div id="resultado-box" class="hidden mt-4 bg-green-50 rounded p-4 text-center border border-green-200">
@@ -67,7 +86,7 @@
     </div>
 </div>
 
-{{-- Modal de edição manual --}}
+{{-- Modal edição manual --}}
 <div id="modal-edicao" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-xl p-6 w-72">
         <h3 class="font-semibold text-gray-800 mb-1">Corrigir Questão <span id="modal-q-num" class="text-green-600"></span></h3>
@@ -80,10 +99,8 @@
             @endforeach
         </div>
         <div class="flex gap-2">
-            <button onclick="selecionarLetra(null)"
-                class="flex-1 py-2 rounded-full border text-sm text-gray-500 hover:bg-gray-50">Em branco</button>
-            <button onclick="fecharModal()"
-                class="flex-1 py-2 rounded-full bg-gray-100 text-sm text-gray-600 hover:bg-gray-200">Cancelar</button>
+            <button onclick="selecionarLetra(null)" class="flex-1 py-2 rounded-full border text-sm text-gray-500 hover:bg-gray-50">Em branco</button>
+            <button onclick="fecharModal()" class="flex-1 py-2 rounded-full bg-gray-100 text-sm text-gray-600 hover:bg-gray-200">Cancelar</button>
         </div>
     </div>
 </div>
@@ -91,111 +108,340 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
-let stream = null, capturedB64 = null, qrData = null, scanInterval = null;
-let respostas = [];   // [{questao_numero, marcacao, dupla_marcacao, em_branco, confianca, corrigida_manual}]
-let editandoQuestao = null;
+let capturedB64 = null, qrData = null, qrLocation = null;
+let respostas = [], editandoQuestao = null, imagemOriginal = null;
 
-const video  = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx    = canvas.getContext('2d');
 
-async function startCamera() {
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        video.srcObject = stream;
-        document.getElementById('btnCapture').disabled = false;
-        setStatus('Câmera ativa — posicione o cartão na frente da câmera');
-        scanInterval = setInterval(scanQR, 250);
-    } catch(e) {
-        setStatus('Erro: ' + e.message, true);
+// ─── Constantes do layout do PDF (dompdf 96 DPI, A4: 794×1122 px) ─────────────
+// Tabela de questões com coluna de marcadores (14px) + 12 colunas auto + spacer(10px).
+// Cada coluna auto ≈ (754-24)/12 = 60.8 ≈ 61px.
+//
+// Marcadores negros (10×18 px) na 1ª coluna da tabela:
+//   MARKER_X = body_pad(20) + marker_col/2(7) = 27px
+//
+// Colunas de letras:
+//   LCOL_X = body_pad(20) + marker(14) + Nº(61) = 95px
+//   RCOL_X = LCOL_X + 5*61 + spacer(10) + Nº(61) = 471px
+
+const PDF_W = 794, PDF_H = 1122;
+
+// Posição e tamanho do QR no PDF (em px de saída)
+const QR_SIZE  = 110;
+const QR_LEFT  = 28;
+const QR_TOP   = 130;
+
+// Coluna de marcadores de linha (blocos negros)
+const MARKER_X = 27;   // x do centro da coluna de marcadores no PDF normalizado
+
+// Coordenadas do grid OMR no PDF (em px de saída)
+const GRID_LCOL_X = 95;   // x do início das letras (coluna esquerda)
+const GRID_RCOL_X = 471;  // x do início das letras (coluna direita)
+const GRID_ROW1_Y = 296;  // y do topo da 1ª linha de dados (fallback)
+const GRID_ROW_H  = 28;   // altura de cada linha — fallback sem marcadores
+const GRID_CELL_W = 61;   // largura de cada coluna de letra (px)
+const BUBBLE_R    = 10;   // raio da bolinha (px)
+
+// ─── Upload ───────────────────────────────────────────────────────────────────
+
+function processarArquivo(arquivo) {
+    if (!arquivo) return;
+    if (!arquivo.type.startsWith('image/')) { showError('Selecione JPG ou PNG.'); return; }
+    if (arquivo.size > 10 * 1024 * 1024) { showError('Imagem muito grande. Máximo 10MB.'); return; }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            imagemOriginal = img;
+            capturedB64    = e.target.result;
+            document.getElementById('preview-img').src = e.target.result;
+            document.getElementById('preview-img').classList.remove('hidden');
+            document.getElementById('upload-placeholder').classList.add('hidden');
+            document.getElementById('btnLer').disabled = false;
+            document.getElementById('error-box').classList.add('hidden');
+            setStatus('Imagem carregada. Detectando QR Code...');
+            detectarQRAutomatico();
+        };
+        img.onerror = () => showError('Não foi possível carregar a imagem.');
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(arquivo);
+}
+
+// ─── Detecção de QR: multi-escala + binarização ───────────────────────────────
+
+function detectarQRAutomatico() {
+    const qr = tentarDetectarQR(imagemOriginal);
+    if (qr) {
+        qrData = qr;
+        setStatus('QR detectado! Buscando informações do aluno...');
+        fetchQrInfo(qrData);
+    } else {
+        setStatus('QR não detectado — tente uma foto com melhor iluminação ou mais próxima.');
     }
 }
 
-function scanQR() {
-    if (!video.readyState || video.readyState < 2) return;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-    if (code && code.data !== qrData) {
-        qrData = code.data;
-        document.getElementById('qr-border').classList.remove('opacity-0');
-        document.getElementById('qr-border').classList.replace('border-yellow-400', 'border-green-400');
-        setStatus('QR detectado: ' + qrData);
-        fetchQrInfo(qrData);
+function tentarDetectarQR(img) {
+    // Tenta em várias resoluções. 800px é o ponto ideal para jsQR.
+    for (const maxW of [800, 1200, 500, img.width]) {
+        const s = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width * s), h = Math.round(img.height * s);
+        canvas.width = w; canvas.height = h;
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const raw = ctx.getImageData(0, 0, w, h);
+        let code = jsQR(raw.data, w, h, { inversionAttempts: 'attemptBoth' });
+        if (!code) code = jsQR(binarizar(raw, w, h).data, w, h, { inversionAttempts: 'attemptBoth' });
+
+        if (code) {
+            // Escala os cantos de volta para coordenadas da imagem original
+            const inv = 1 / s;
+            qrLocation = {
+                tl: { x: code.location.topLeftCorner.x     * inv, y: code.location.topLeftCorner.y     * inv },
+                tr: { x: code.location.topRightCorner.x    * inv, y: code.location.topRightCorner.y    * inv },
+                bl: { x: code.location.bottomLeftCorner.x  * inv, y: code.location.bottomLeftCorner.y  * inv },
+                br: { x: code.location.bottomRightCorner.x * inv, y: code.location.bottomRightCorner.y * inv },
+            };
+            return code.data;
+        }
     }
+    qrLocation = null;
+    return null;
 }
+
+function binarizar(imgData, W, H) {
+    const src = imgData.data, out = new Uint8ClampedArray(src.length);
+    let soma = 0;
+    for (let i = 0; i < W * H; i++)
+        soma += 0.299 * src[i*4] + 0.587 * src[i*4+1] + 0.114 * src[i*4+2];
+    const thresh = soma / (W * H);
+    for (let i = 0; i < W * H; i++) {
+        const l = 0.299 * src[i*4] + 0.587 * src[i*4+1] + 0.114 * src[i*4+2];
+        out[i*4] = out[i*4+1] = out[i*4+2] = (l < thresh ? 0 : 255);
+        out[i*4+3] = 255;
+    }
+    return new ImageData(out, W, H);
+}
+
+// ─── Normalização usando o QR como âncora ─────────────────────────────────────
+// Se o QR foi detectado: estima a posição e tamanho do cartão na foto usando as
+// proporções conhecidas do PDF, e normaliza para um canvas de 794×1122 (A4 96 DPI).
+// Com a imagem normalizada, as coordenadas do OMR são sempre as mesmas.
+
+function normalizarCartao(img) {
+    if (!qrLocation) {
+        // Sem QR: usa imagem completa e coordenadas percentuais de fallback
+        canvas.width  = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        return false;
+    }
+
+    // Tamanho do QR em pixels da imagem original
+    const qrW = Math.abs(qrLocation.tr.x - qrLocation.tl.x);
+    const qrH = Math.abs(qrLocation.bl.y - qrLocation.tl.y);
+    const qrPx = (qrW + qrH) / 2; // média para suavizar distorções
+
+    // Quantos pixels da foto correspondem a 1px do PDF
+    const pxPerPdf = qrPx / QR_SIZE;
+
+    // Limites estimados do cartão na foto
+    const cardW    = PDF_W * pxPerPdf;
+    const cardH    = PDF_H * pxPerPdf;
+    const cardLeft = qrLocation.tl.x - QR_LEFT * pxPerPdf;
+    const cardTop  = qrLocation.tl.y - QR_TOP  * pxPerPdf;
+
+    // Desenha o cartão normalizado em 794×1122
+    canvas.width  = PDF_W;
+    canvas.height = PDF_H;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, PDF_W, PDF_H);
+    ctx.drawImage(img, cardLeft, cardTop, cardW, cardH, 0, 0, PDF_W, PDF_H);
+
+    return true;
+}
+
+// ─── Busca de info do cartão ──────────────────────────────────────────────────
 
 async function fetchQrInfo(qr) {
     try {
-        const res  = await fetch('/api/leituras/qr-info', {
+        const res = await fetch('/api/leituras/qr-info', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
             body: JSON.stringify({ qr_data: qr })
         });
-        if (!res.ok) throw new Error((await res.json()).error || 'Cartão não encontrado.');
-        const d = await res.json();
-        const nomeExibido = d.nome_aluno || d.codigo_aluno;
-        const turmaExibida = d.turma ? ' • Turma: ' + d.turma : '';
-        document.getElementById('qr-aluno').textContent = nomeExibido + turmaExibida;
-        document.getElementById('qr-prova').textContent = d.prova.titulo + ' — ' + d.prova.total_questoes + ' questões';
-        document.getElementById('qr-info').classList.remove('hidden');
-        window._totalQuestoes = d.prova.total_questoes;
-    } catch(e) { showError(e.message); }
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Cartão não encontrado.');
+        }
+        exibirInfoCartao(await res.json());
+    } catch(e) {
+        showError(e.message);
+    }
 }
 
-function captureFrame() {
-    if (!stream) return;
-    clearInterval(scanInterval);
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    capturedB64 = canvas.toDataURL('image/jpeg', 0.85);
-    respostas   = lerRespostasOMR(canvas);
+function exibirInfoCartao(d) {
+    document.getElementById('qr-aluno').textContent = d.nome_aluno || d.codigo_aluno;
+    document.getElementById('qr-turma').textContent = d.turma ? 'Turma: ' + d.turma : '';
+    document.getElementById('qr-prova').textContent = d.prova.titulo + ' — ' + d.prova.total_questoes + ' questões';
+    document.getElementById('qr-info').classList.remove('hidden');
+    window._totalQuestoes = d.prova.total_questoes;
+    setStatus('Aluno identificado. Clique em "Ler Cartão" para processar as respostas.');
+}
+
+// ─── Execução da leitura OMR ──────────────────────────────────────────────────
+
+function executarLeitura() {
+    if (!capturedB64) return;
+
+    if (!qrData) {
+        const qr = tentarDetectarQR(imagemOriginal);
+        if (qr) { qrData = qr; fetchQrInfo(qrData); }
+        else {
+            showError('QR Code não encontrado. Tente uma foto com melhor iluminação ou mais próxima do cartão.');
+            return;
+        }
+    }
+
+    setStatus('Normalizando imagem e lendo marcações...');
+    const normalizado = normalizarCartao(imagemOriginal);
+    respostas = lerRespostasOMR(canvas, normalizado);
     renderRespostas();
-    document.getElementById('btnEnviar').disabled = !qrData;
-    setStatus('Imagem capturada. Revise as respostas e clique em Confirmar Leitura.');
+    document.getElementById('btnEnviar').disabled = false;
+    setStatus('Leitura concluída. Revise as respostas e clique em Confirmar Leitura.');
 }
 
-function lerRespostasOMR(c) {
+// ─── Detecção de linhas pelos marcadores negros ───────────────────────────────
+// Varre a coluna X=MARKER_X na imagem normalizada procurando retângulos pretos.
+// Retorna array com o Y central de cada marcador encontrado (um por linha da grade).
+
+function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
+    const SCAN_R  = 5;    // largura de varredura ±5px em torno de MARKER_X
+    const THRESH  = 80;   // pixels abaixo disso são "escuros"
+    const MIN_RUN = 8;    // mínimo de pixels escuros consecutivos para ser um marcador
+
+    const runs = [];
+    let inRun = false, runStart = 0;
+
+    for (let y = 0; y < H; y++) {
+        let darkCnt = 0;
+        for (let dx = -SCAN_R; dx <= SCAN_R; dx++) {
+            const x = Math.min(W - 1, Math.max(0, MARKER_X + dx));
+            if (gray[y * W + x] < THRESH) darkCnt++;
+        }
+        const isDark = darkCnt >= SCAN_R; // maioria dos pixels na faixa é escura
+
+        if (isDark && !inRun) { inRun = true; runStart = y; }
+        else if (!isDark && inRun) {
+            if (y - runStart >= MIN_RUN)
+                runs.push(Math.round((runStart + y - 1) / 2));
+            inRun = false;
+        }
+    }
+    if (inRun && H - runStart >= MIN_RUN)
+        runs.push(Math.round((runStart + H - 1) / 2));
+
+    return runs.length >= nLinhas ? runs.slice(0, nLinhas) : null;
+}
+
+// ─── Algoritmo OMR ────────────────────────────────────────────────────────────
+// Quando normalizado=true: usa marcadores para detectar Y exato de cada linha e
+// coordenadas absolutas do PDF para X. Quando false: usa percentuais de fallback.
+
+function lerRespostasOMR(c, normalizado) {
     const W = c.width, H = c.height;
     const imgData = ctx.getImageData(0, 0, W, H);
-    const result  = [];
-    const LETRAS  = ['A','B','C','D','E'];
-    const CSIZE   = 14, THRESH = 30;
-    const cols    = [
-        { startX: Math.round(W * 0.08), offset: 0 },
-        { startX: Math.round(W * 0.55), offset: 15 },
-    ];
-    const startY = Math.round(H * 0.30);
-    const rowH   = Math.round(H * 0.042);
-    const cellW  = Math.round(W * 0.072);
+
+    const gray = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+        const d = imgData.data;
+        gray[i] = 0.299 * d[i*4] + 0.587 * d[i*4+1] + 0.114 * d[i*4+2];
+    }
+
+    // Total de questões vem do QR info; fallback 30 se ainda não carregado
+    const totalQ   = window._totalQuestoes || 30;
+    const halfRows = Math.ceil(totalQ / 2);
+
+    let cols, cellW, R_BUBBLE, FILL_PCT;
+    let rowYsFn; // função (row) → cy
+
+    if (normalizado) {
+        cols     = [
+            { startX: GRID_LCOL_X, offset: 0,         rows: halfRows },
+            { startX: GRID_RCOL_X, offset: halfRows,   rows: totalQ - halfRows },
+        ];
+        cellW    = GRID_CELL_W;
+        R_BUBBLE = BUBBLE_R;
+        FILL_PCT = 0.20;
+
+        // Tenta localizar marcadores para Y preciso; fallback calculado
+        const detected = detectarLinhasPorMarcadores(gray, W, H, halfRows);
+        rowYsFn = detected
+            ? (row) => detected[row]
+            : (row) => GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
+    } else {
+        cols     = [
+            { startX: Math.round(W * 0.08), offset: 0,         rows: halfRows },
+            { startX: Math.round(W * 0.55), offset: halfRows,   rows: totalQ - halfRows },
+        ];
+        cellW    = Math.round(W * 0.072);
+        R_BUBBLE = Math.round(Math.min(W, H) * 0.011);
+        FILL_PCT = 0.22;
+        const rowH0 = Math.round(H * 0.042);
+        const startY0 = Math.round(H * 0.30);
+        rowYsFn = (row) => startY0 + row * rowH0 + Math.round(rowH0 / 2);
+    }
+
+    const LETRAS = ['A','B','C','D','E'];
+    const result = [];
 
     for (const col of cols) {
-        for (let row = 0; row < 15; row++) {
-            const cy  = startY + row * rowH + Math.round(rowH / 2);
+        for (let row = 0; row < col.rows; row++) {
+            const cy  = rowYsFn(row);
             const num = col.offset + row + 1;
-            const marcados = [];
+            const marcados = [], confiancas = [];
+
             for (let alt = 0; alt < 5; alt++) {
-                const cx = col.startX + alt * cellW + Math.round(cellW / 2);
-                let dark = 0;
-                for (let dy = -CSIZE/2; dy < CSIZE/2; dy++) {
-                    for (let dx = -CSIZE/2; dx < CSIZE/2; dx++) {
+                const cx   = col.startX + alt * cellW + Math.round(cellW / 2);
+                const R_BG = R_BUBBLE * 2;
+
+                // Threshold local: média do anel externo
+                let sumBg = 0, cntBg = 0;
+                for (let dy = -R_BG; dy <= R_BG; dy++) {
+                    for (let dx = -R_BG; dx <= R_BG; dx++) {
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < R_BUBBLE || dist > R_BG) continue;
                         const px = Math.round(cx+dx), py = Math.round(cy+dy);
                         if (px < 0 || py < 0 || px >= W || py >= H) continue;
-                        const i = (py * W + px) * 4;
-                        if (imgData.data[i] < 100 && imgData.data[i+1] < 100 && imgData.data[i+2] < 100) dark++;
+                        sumBg += gray[py * W + px]; cntBg++;
                     }
                 }
-                if (dark > THRESH) marcados.push(LETRAS[alt]);
+                const thresh = (cntBg > 0 ? sumBg / cntBg : 220) * 0.65;
+
+                // Pixels escuros dentro da bolinha
+                let dark = 0, total = 0;
+                for (let dy = -R_BUBBLE; dy <= R_BUBBLE; dy++) {
+                    for (let dx = -R_BUBBLE; dx <= R_BUBBLE; dx++) {
+                        if (dx*dx + dy*dy > R_BUBBLE*R_BUBBLE) continue;
+                        const px = Math.round(cx+dx), py = Math.round(cy+dy);
+                        if (px < 0 || py < 0 || px >= W || py >= H) continue;
+                        if (gray[py * W + px] < thresh) dark++;
+                        total++;
+                    }
+                }
+
+                const pct = total > 0 ? dark / total : 0;
+                if (pct >= FILL_PCT) { marcados.push(LETRAS[alt]); confiancas.push(Math.min(1, pct / 0.70)); }
             }
+
             result.push({
-                questao_numero:  num,
-                marcacao:        marcados.length === 1 ? marcados[0] : null,
-                dupla_marcacao:  marcados.length > 1,
-                em_branco:       marcados.length === 0,
-                confianca:       marcados.length === 1 ? 0.85 : null,
+                questao_numero:   num,
+                marcacao:         marcados.length === 1 ? marcados[0] : null,
+                dupla_marcacao:   marcados.length > 1,
+                em_branco:        marcados.length === 0,
+                confianca:        confiancas.length === 1 ? confiancas[0] : null,
                 corrigida_manual: false,
             });
         }
@@ -203,15 +449,17 @@ function lerRespostasOMR(c) {
     return result;
 }
 
+// ─── Grid de respostas ────────────────────────────────────────────────────────
+
 function renderRespostas() {
     const grid = document.getElementById('respostas-grid');
     grid.innerHTML = '';
     respostas.forEach(r => {
-        const div  = document.createElement('div');
-        const cor  = r.dupla_marcacao ? 'bg-yellow-100 border-yellow-400 text-yellow-800'
-                   : r.em_branco     ? 'bg-gray-100 border-gray-300 text-gray-400'
-                   : r.corrigida_manual ? 'bg-blue-100 border-blue-400 text-blue-800'
-                   : 'bg-green-50 border-green-200 text-green-800';
+        const cor = r.dupla_marcacao   ? 'bg-yellow-100 border-yellow-400 text-yellow-800'
+                  : r.em_branco        ? 'bg-gray-100 border-gray-300 text-gray-400'
+                  : r.corrigida_manual ? 'bg-blue-100 border-blue-400 text-blue-800'
+                  : 'bg-green-50 border-green-200 text-green-800';
+        const div = document.createElement('div');
         div.className = `border rounded p-1 text-center cursor-pointer hover:opacity-80 transition ${cor}`;
         div.innerHTML = `<p class="text-gray-400 text-xs">${r.questao_numero}</p>
                          <p class="font-bold text-sm">${r.marcacao || (r.dupla_marcacao ? '!!' : '—')}</p>`;
@@ -220,34 +468,27 @@ function renderRespostas() {
     });
 }
 
+// ─── Modal ────────────────────────────────────────────────────────────────────
+
 function abrirModal(num) {
     editandoQuestao = num;
     document.getElementById('modal-q-num').textContent = num;
     const atual = respostas.find(r => r.questao_numero === num)?.marcacao;
     document.querySelectorAll('.letra-btn').forEach(btn => {
         btn.classList.toggle('border-green-600', btn.dataset.letra === atual);
-        btn.classList.toggle('bg-green-100', btn.dataset.letra === atual);
+        btn.classList.toggle('bg-green-100',    btn.dataset.letra === atual);
     });
     document.getElementById('modal-edicao').classList.remove('hidden');
 }
-
-function fecharModal() {
-    document.getElementById('modal-edicao').classList.add('hidden');
-    editandoQuestao = null;
-}
-
+function fecharModal() { document.getElementById('modal-edicao').classList.add('hidden'); editandoQuestao = null; }
 function selecionarLetra(letra) {
     if (!editandoQuestao) return;
     const r = respostas.find(r => r.questao_numero === editandoQuestao);
-    if (r) {
-        r.marcacao         = letra;
-        r.em_branco        = letra === null;
-        r.dupla_marcacao   = false;
-        r.corrigida_manual = true;
-    }
-    fecharModal();
-    renderRespostas();
+    if (r) { r.marcacao = letra; r.em_branco = letra === null; r.dupla_marcacao = false; r.corrigida_manual = true; }
+    fecharModal(); renderRespostas();
 }
+
+// ─── Envio ────────────────────────────────────────────────────────────────────
 
 async function enviarLeitura() {
     if (!qrData || !capturedB64) return;
@@ -258,13 +499,13 @@ async function enviarLeitura() {
         const res  = await fetch('/api/leituras', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-            body: JSON.stringify({ qr_data: qrData, imagem: capturedB64, respostas, origem: 'webcam' })
+            body: JSON.stringify({ qr_data: qrData, imagem: capturedB64, respostas, origem: 'upload' })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erro ao processar.');
         const r = data.resultado;
-        document.getElementById('nota-final').textContent  = parseFloat(r.nota_final).toFixed(1);
-        document.getElementById('acertos-info').textContent = r.total_acertos + ' acertos de ' + r.total_questoes;
+        document.getElementById('nota-final').textContent     = parseFloat(r.nota_final).toFixed(1);
+        document.getElementById('acertos-info').textContent   = r.total_acertos + ' acertos de ' + r.total_questoes;
         document.getElementById('percentual-info').textContent = parseFloat(r.percentual_acerto).toFixed(1) + '% de aproveitamento';
         if (data.resultado_url) document.getElementById('link-resultado').href = data.resultado_url;
         document.getElementById('resultado-box').classList.remove('hidden');
@@ -275,28 +516,32 @@ async function enviarLeitura() {
     }
 }
 
+// ─── Reset / utils ────────────────────────────────────────────────────────────
+
 function resetar() {
-    qrData = null; capturedB64 = null; respostas = [];
+    qrData = null; capturedB64 = null; respostas = []; imagemOriginal = null; qrLocation = null;
     document.getElementById('respostas-grid').innerHTML = '';
-    document.getElementById('qr-info').classList.add('hidden');
-    document.getElementById('resultado-box').classList.add('hidden');
-    document.getElementById('error-box').classList.add('hidden');
+    ['qr-info','resultado-box','error-box'].forEach(id => document.getElementById(id).classList.add('hidden'));
     document.getElementById('btnEnviar').disabled = true;
-    document.getElementById('qr-border').classList.add('opacity-0');
-    if (stream) scanInterval = setInterval(scanQR, 250);
-    setStatus('Resetado — posicione novo cartão.');
+    document.getElementById('btnLer').disabled    = true;
+    document.getElementById('preview-img').classList.add('hidden');
+    document.getElementById('preview-img').src    = '';
+    document.getElementById('upload-placeholder').classList.remove('hidden');
+    document.getElementById('fileInput').value    = '';
+    setStatus('Resetado — selecione uma nova imagem.');
 }
 
-function setStatus(msg, error = false) {
+function setStatus(msg, err = false) {
     const el = document.getElementById('status-text');
     el.textContent = msg;
-    el.className = 'text-xs ' + (error ? 'text-red-500' : 'text-gray-400');
+    el.className   = 'text-xs ' + (err ? 'text-red-500' : 'text-gray-400');
 }
 function showError(msg) {
     const el = document.getElementById('error-box');
     el.textContent = 'Erro: ' + msg;
     el.classList.remove('hidden');
 }
+
 document.getElementById('modal-edicao').addEventListener('click', e => {
     if (e.target === document.getElementById('modal-edicao')) fecharModal();
 });

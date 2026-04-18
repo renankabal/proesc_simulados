@@ -4,6 +4,191 @@
 
 ---
 
+## 0. Estado Atual da Implementação (atualizado em 2026-04-17)
+
+### 0.1 Fases concluídas
+
+Todas as 4 fases funcionais do sistema foram implementadas:
+
+| Fase | Status | Descrição |
+|------|--------|-----------|
+| 1 — CRUD de Provas/Gabaritos | ✅ Completo | Models, Controllers, Views, Policies, Tests |
+| 2 — Geração de Cartões-Resposta | ✅ Completo | PDF com QR Code (SVG data URI), geração individual e em lote |
+| 3 — Leitura via Upload de Arquivo | ✅ Completo | jsQR + OMR + normalização por âncora QR + API + edição manual + redirect para resultado |
+| 4 — Resultados e Relatórios | ✅ Completo | Resultado individual, relatório por prova, exportação CSV |
+
+### 0.2 Identidade Visual
+
+A aplicação usa a identidade visual do **proesc.com**:
+
+- **Paleta de cores:** Verde Proesc como cor primária (`#2ecc71` = green-500, `#27ae60` = green-600, `#0e4d25` = green-900). Toda referência `indigo-*` foi substituída por `green-*`.
+- **Tipografia:** Sora (principal) + Poppins via Google Fonts — configuradas em `tailwind.config.js` como `fontFamily.sans`.
+- **Navbar:** Branca, sticky (`position: sticky; top: 0; z-index: 40`), com logo "proesc | simulados" em verde e links em cinza com hover verde.
+- **Botões primários:** Pill shape — `rounded-full` com `font-semibold`, fundo `bg-green-600 hover:bg-green-700`.
+- **Cards:** Fundo branco com `shadow` e bordas arredondadas (`rounded-lg`).
+- **Alertas de sessão:** Com ícone ✓/✗, borda arredondada `rounded-xl`, fundo suave `bg-green-50` / `bg-red-50`.
+- **PDFs dos cartões:** Borda e acentos em verde escuro `#1a7a3c`; cabeçalho da prova em verde.
+
+### 0.3 Formato do QR Code (UUID puro)
+
+O campo `qr_data` em `cartoes_resposta` armazena **apenas o UUID do próprio cartão** (36 caracteres). O QR Code impresso no PDF codifica somente esse UUID.
+
+- Formato simples = menos módulos = QR mais fácil de escanear.
+- Nível de correção de erro: `M` (15%) — suficiente para papéis levemente amassados.
+- O lookup no backend resolve por PK diretamente (`find($uuid)`), com fallback `where('qr_data', $uuid)` para cartões antigos.
+- Cartões com formato legado (pipe-separated ou JSON) continuam funcionando via `resolverCartaoPorQr()` em `LeituraApiController`.
+
+**Geração do cartão** (`GerarCartaoAction`): o cartão é criado primeiro sem `id` explícito (o trait `HasUuids` gera o UUID via evento `creating`), e só então `qr_data = $cartao->id` é salvo. Isso evita divergência entre o `id` real e o `qr_data`.
+
+**Renderização do QR no PDF** (`cartoes/pdf.blade.php`): o QR é gerado como SVG pela lib `simplesoftwareio/simple-qrcode`, convertido para base64 e embutido como `data:image/svg+xml;base64,...` em uma tag `<img>` — pois o dompdf não renderiza SVG inline.
+
+### 0.4 Roles implementadas (difere do plano original)
+
+O plano original previa `corretor` e `visualizador`. A implementação usa:
+
+| Role | Permissões |
+|------|-----------|
+| `admin` | Acesso total; gerencia usuários e todas as provas |
+| `professor` | Cria/edita provas, gabaritos, cartões; vê relatórios das próprias provas |
+| `operador` | Acessa tela de leitura via webcam; não gerencia provas |
+
+### 0.5 Rotas reais implementadas
+
+```php
+// Web (auth middleware)
+Route::resource('provas', ProvaController::class);
+Route::prefix('provas/{prova}/questoes')->name('questoes.')->group(fn() => [
+    Route::post('/', 'store'), Route::post('/bulk', 'bulkStore'), Route::delete('/{questao}', 'destroy')
+]);
+Route::prefix('provas/{prova}')->name('provas.')->group(fn() => [
+    Route::get('/gabarito/edit', 'gabarito.edit'), Route::put('/gabarito', 'gabarito.update'),
+    Route::get('/relatorio', 'relatorio')
+]);
+Route::prefix('provas/{prova}/cartoes')->name('cartoes.')->group(fn() => [
+    Route::get('/', 'index'), Route::post('/', 'store'), Route::post('/lote', 'storeLote'),
+    Route::get('/{cartao}/pdf', 'pdf'), Route::get('/download/{filename}', 'downloadLote')
+]);
+Route::get('leitura', ...)->middleware('role:admin,professor,operador');
+Route::get('resultados', ResultadoController::index);
+Route::get('resultados/export', ResultadoController::export);
+Route::get('resultados/{resultado}', ResultadoController::show);
+
+// API (auth:sanctum) — routes/api.php
+Route::post('/leituras',          [LeituraApiController::class, 'store']);
+Route::post('/leituras/qr-info',  [LeituraApiController::class, 'qrInfo']);
+Route::get('/cartoes/buscar',     [LeituraApiController::class, 'buscarCartao']); // busca por nome/código
+```
+
+### 0.6 Estrutura real de arquivos
+
+```
+app/
+├── Http/Controllers/
+│   ├── Prova/ProvaController.php
+│   ├── Prova/QuestaoController.php
+│   ├── Gabarito/GabaritoController.php
+│   ├── Cartao/CartaoRespostaController.php
+│   ├── Resultado/ResultadoController.php
+│   └── API/LeituraApiController.php
+├── Domain/
+│   ├── Prova/Models/{Prova,Questao}.php + Enums/StatusProva.php
+│   ├── Gabarito/Models/Gabarito.php
+│   ├── Cartao/Models/CartaoResposta.php
+│   ├── Leitura/Models/{Leitura,RespostaAluno}.php + Enums/StatusLeitura.php
+│   └── Resultado/Models/Resultado.php
+├── Application/
+│   ├── Actions/Cartao/GerarCartaoAction.php
+│   ├── Actions/Leitura/{ProcessarLeituraAction,CalcularResultadoAction}.php
+│   ├── Actions/Prova/CriarProvaAction.php
+│   └── DTOs/{CriarProvaDTO,GerarCartaoDTO,ProcessarLeituraDTO}.php
+└── Support/Enums/RoleUsuario.php
+
+resources/views/
+├── layouts/main.blade.php          ← Layout principal (identidade Proesc)
+├── provas/{index,show,create,edit,relatorio,_form}.blade.php
+├── gabaritos/edit.blade.php
+├── cartoes/{index,pdf,pdf_lote}.blade.php
+├── leitura/webcam.blade.php
+└── resultados/{index,show}.blade.php
+
+database/
+├── migrations/                     ← 10 migrations criadas
+├── factories/ProvaFactory.php
+└── seeders/DatabaseSeeder.php      ← admin + professor + operador + prova demo
+
+tests/
+├── Feature/Prova/{ProvaTest,GabaritoTest}.php
+└── Unit/CalcularResultadoTest.php
+```
+
+### 0.7 Decisões técnicas tomadas
+
+- **Sem Livewire nas views da aplicação** — Todas as views usam Blade puro com formulários HTML. O `@livewireStyles` e `@livewireScripts` estão no layout por compatibilidade, mas sem componentes Livewire ativos. A tela de leitura usa JavaScript vanilla + jsQR.
+- **Layout próprio `layouts/main.blade.php`** — Breeze usa `layouts/app.blade.php` (slot-based) para as views de auth; as views da aplicação usam `@extends('layouts.main')` com `@yield('content')`.
+- **UUID gerado pelo Eloquent, não manualmente** — `GerarCartaoAction` cria o cartão sem passar `id` (o campo não está em `$fillable`); o trait `HasUuids` gera o UUID no evento `creating`. Após o `create()`, `$cartao->qr_data = $cartao->id` é salvo via `save()`. Nunca pré-gerar UUID manualmente para evitar divergência entre PK e `qr_data`.
+- **QR Code no PDF via SVG data URI** — dompdf não renderiza `<svg>` inline. A solução é gerar o SVG com `simplesoftwareio/simple-qrcode`, codificar em base64 e usar `<img src="data:image/svg+xml;base64,...">`.
+- **Leitura por upload de arquivo, não webcam** — A Fase 3 foi implementada como upload de imagem (JPG/PNG) com drag-and-drop, em vez de stream de câmera ao vivo.
+- **Normalização da imagem por âncora QR** — Ao fazer upload, o JS usa `jsQR` para localizar o QR Code na foto (multi-escala + binarização). Com as coordenadas dos cantos do QR e as dimensões conhecidas do PDF (794×1122 px a 96 DPI), a imagem é recortada e redimensionada para um canvas normalizado, tornando as coordenadas OMR sempre fixas e independentes da distância/ângulo da foto.
+- **Busca manual de cartão** — Quando o QR não é detectado, o operador pode buscar o aluno por nome ou código. O endpoint `GET /api/cartoes/buscar?q=...` retorna até 10 cartões correspondentes.
+- **Cálculo de resultado síncrono** — `CalcularResultadoAction` é chamado diretamente na API de leitura (sem job assíncrono) por simplicidade. Jobs de fila ficam para a Fase 5.
+- **Testes em PostgreSQL** — `phpunit.xml` configurado para usar `proesc_simulados_test` (não SQLite).
+
+### 0.8 Marcadores de linha e constantes OMR
+
+#### Marcadores no cartão (`cartoes/pdf.blade.php`)
+
+A grade de questões possui uma **coluna de marcadores** como primeira coluna da tabela: retângulos pretos sólidos (10×18 px, classe `.marc`) alinhados com o centro vertical de cada linha. Servem como âncora de posição para o OMR detectar os Y reais de cada linha, eliminando dependência de coordenadas calculadas.
+
+Layout da tabela com marcadores (tabela `width:100%`, A4 96 DPI = 754px útil):
+- Coluna marcador: `width:14px` (fixa)
+- Spacer central: `width:10px` (fixo)
+- 12 colunas auto: (754−24)/12 ≈ 61px cada
+
+#### Constantes do OMR (`leitura/webcam.blade.php`)
+
+```javascript
+const PDF_W = 794, PDF_H = 1122;  // A4 a 96 DPI
+
+// QR Code no PDF
+const QR_SIZE  = 110;
+const QR_LEFT  = 28;   // body_pad(20) + qr-col padding-left(8)
+const QR_TOP   = 130;  // body_pad(20) + header(~86) + margin(14) + qr-col pad-top(10)
+
+// Marcadores de linha
+const MARKER_X = 27;   // centro da coluna de marcadores: body_pad(20) + col/2(7)
+
+// Colunas de letras
+const GRID_LCOL_X = 95;   // body_pad(20) + marker(14) + Nº(61) = 95
+const GRID_RCOL_X = 471;  // LCOL_X + 5*61 + spacer(10) + Nº(61) = 471
+const GRID_ROW1_Y = 296;  // fallback: topo da 1ª linha de dados
+const GRID_ROW_H  = 28;   // fallback: altura de cada linha
+const GRID_CELL_W = 61;   // largura de cada célula de letra
+const BUBBLE_R    = 10;   // raio da bolinha (px)
+```
+
+#### Detecção de linhas por marcadores
+
+A função `detectarLinhasPorMarcadores(gray, W, H, nLinhas)` varre a coluna X=MARKER_X (±5px) na imagem normalizada, identifica runs de pixels escuros (≥8px consecutivos, threshold=80) e retorna o centro Y de cada marcador. Se encontrar ≥ nLinhas marcadores, substitui o cálculo por posição detectada. Caso contrário, usa `GRID_ROW1_Y + row * GRID_ROW_H` como fallback.
+
+#### Correção do bug de ordem de questões
+
+O número de linhas por coluna e o offset da coluna direita são calculados dinamicamente:
+```javascript
+const totalQ   = window._totalQuestoes || 30;  // vem do QR info
+const halfRows = Math.ceil(totalQ / 2);
+cols = [
+    { startX: GRID_LCOL_X, offset: 0,         rows: halfRows },
+    { startX: GRID_RCOL_X, offset: halfRows,   rows: totalQ - halfRows },
+];
+```
+Isso corrige o bug anterior onde `offset: 15` e `< 15 linhas` eram fixos, causando leitura errada em provas com menos de 30 questões (ex.: prova de 20 questões lia Q11 como Q16).
+
+**Atenção:** cartões gerados antes desta alteração não possuem a coluna de marcadores e devem ser reimpressos.
+
+---
+
+---
+
 ## 1. Visão Geral do Projeto
 
 ### 1.1 Contexto
@@ -33,9 +218,10 @@ Desenvolver um sistema web completo que permita:
         ↓
 [Aluno] Preenche o cartão com caneta
         ↓
-[Corretor] Acessa tela de leitura → posiciona cartão frente à câmera
+[Corretor] Acessa tela de leitura → faz upload da foto do cartão (JPG/PNG)
         ↓
-[Browser] Detecta QR Code → ancora posição → lê marcações → exibe pré-visualização
+[Browser] Detecta QR Code (multi-escala + binarização) → normaliza imagem por âncora QR
+        → lê marcações via OMR → exibe pré-visualização
         ↓
 [Corretor] Revisa e confirma (ou corrige manualmente) a leitura
         ↓
@@ -44,14 +230,15 @@ Desenvolver um sistema web completo que permita:
 
 ### 1.4 Perfis de Usuário
 
-| Perfil         | Responsabilidades                                                                 |
-|----------------|-----------------------------------------------------------------------------------|
-| `admin`        | Gerencia usuários, instituições, configurações gerais do sistema                  |
-| `professor`    | Cadastra provas, gabaritos, turmas, gera cartões, visualiza relatórios            |
-| `corretor`     | Realiza a leitura dos cartões via webcam, confirma ou edita leituras              |
-| `visualizador` | Consulta resultados e relatórios, sem permissão de edição                         |
+> **Implementado:** As roles abaixo substituíram `corretor` e `visualizador` do plano original.
 
-Um usuário pode acumular mais de um perfil. A autorização é baseada em **roles + policies do Laravel**.
+| Perfil      | Responsabilidades                                                            |
+|-------------|------------------------------------------------------------------------------|
+| `admin`     | Gerencia usuários, acessa todas as provas, configurações gerais do sistema   |
+| `professor` | Cadastra provas, gabaritos, turmas, gera cartões, visualiza relatórios       |
+| `operador`  | Realiza a leitura dos cartões via webcam, confirma ou edita leituras         |
+
+A autorização é baseada em **roles + policies do Laravel** (`EnsureRole` middleware + `ProvaPolicy`).
 
 ---
 
@@ -433,10 +620,13 @@ CREATE INDEX idx_logs_created ON logs_processamento(created_at DESC);
 
 ### 5.3 Validação do Cartão via QR Code
 
-- O QR Code contém **apenas o UUID do cartão** (não expõe dados do aluno ou gabarito);
-- Ao escanear, o backend valida: cartão existe? prova está ativa? já foi confirmada leitura?
-- Se uma leitura `confirmada` já existe para o cartão, o sistema impede duplicata e alerta o corretor;
-- Permite reprocessamento explícito mediante justificativa (registrada em `logs_processamento`).
+> **Implementado:** O QR Code **não contém apenas o UUID**. Desde 2026-04-17 o formato é JSON com dados do aluno (ver Seção 0.3).
+
+- O QR Code contém JSON com `id`, `codigo`, `aluno`, `turma`, `prova`, `tentativa`;
+- O campo `id` é o UUID do cartão, usado para lookup eficiente por PK;
+- Cartões legados (formato `prova_id|codigo|tentativa|token`) continuam funcionando via fallback `where('qr_data', ...)`;
+- Ao escanear, o backend valida: cartão existe? já foi confirmada leitura?
+- Se uma leitura `confirmada` já existe para o cartão, o sistema impede duplicata e alerta o corretor.
 
 ### 5.4 Cálculo de Nota
 

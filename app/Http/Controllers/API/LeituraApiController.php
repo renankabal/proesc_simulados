@@ -60,6 +60,31 @@ class LeituraApiController extends Controller
         ], 201);
     }
 
+    public function buscarCartao(Request $request): JsonResponse
+    {
+        $q = $request->validate(['q' => ['required', 'string', 'min:2']])['q'];
+
+        $cartoes = CartaoResposta::with('prova')
+            ->where('codigo_aluno', 'ilike', "%{$q}%")
+            ->orWhere('nome_aluno', 'ilike', "%{$q}%")
+            ->orderBy('nome_aluno')
+            ->limit(10)
+            ->get()
+            ->map(fn ($c) => [
+                'id'           => $c->id,
+                'qr_data'      => $c->qr_data,
+                'codigo_aluno' => $c->codigo_aluno,
+                'nome_aluno'   => $c->nome_aluno,
+                'turma'        => $c->turma,
+                'prova'        => [
+                    'titulo'         => $c->prova->titulo,
+                    'total_questoes' => $c->prova->total_questoes,
+                ],
+            ]);
+
+        return response()->json($cartoes);
+    }
+
     public function qrInfo(Request $request): JsonResponse
     {
         $qrData = $request->validate(['qr_data' => ['required', 'string']])['qr_data'];
@@ -86,28 +111,42 @@ class LeituraApiController extends Controller
     /**
      * Localiza o CartaoResposta a partir do conteúdo lido do QR Code.
      *
-     * Suporta dois formatos:
-     *   - Novo (JSON): {"id":"uuid","codigo":"...","aluno":"...","turma":"..."}
-     *   - Legado (pipe): prova_id|codigo_aluno|tentativa|token
+     * Suporta três formatos:
+     *   - UUID puro (atual): "019d9b8d-84bf-..." → lookup direto por PK
+     *   - JSON legado:       {"id":"uuid",...}   → extrai id e faz lookup por PK
+     *   - Pipe legado:       prova_id|codigo|... → busca pelo campo qr_data
+     */
+    /**
+     * Localiza o CartaoResposta a partir do conteúdo lido do QR Code.
+     *
+     * Estratégia de lookup (mais rápido → mais genérico):
+     *   1. UUID puro  → find() por PK, fallback where(qr_data)
+     *   2. JSON       → find() pelo campo 'id', fallback where(qr_data) com JSON completo
+     *   3. Qualquer   → where(qr_data) exato (pipe-legado, etc.)
      */
     private function resolverCartaoPorQr(string $qrData, bool $withProva = false): ?CartaoResposta
     {
-        $query = $withProva
-            ? CartaoResposta::with('prova')
-            : CartaoResposta::query();
+        $base = $withProva ? CartaoResposta::with('prova') : CartaoResposta::query();
 
-        // Formato JSON (novo): usa o campo 'id' para lookup eficiente por PK
+        $trimmed = trim($qrData);
+
+        // UUID puro: tenta PK primeiro, depois campo qr_data
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $trimmed)) {
+            return (clone $base)->find($trimmed)
+                ?? (clone $base)->where('qr_data', $trimmed)->first();
+        }
+
+        // JSON: extrai 'id' e tenta PK, depois qr_data com o JSON completo
         if (str_starts_with(ltrim($qrData), '{')) {
             $payload = json_decode($qrData, true);
             if (!empty($payload['id'])) {
-                $cartao = $query->find($payload['id']);
-                if ($cartao) {
-                    return $cartao;
-                }
+                $cartao = (clone $base)->find($payload['id']);
+                if ($cartao) return $cartao;
             }
+            return (clone $base)->where('qr_data', $qrData)->first();
         }
 
-        // Formato legado ou fallback: busca exata pelo campo qr_data
-        return $query->where('qr_data', $qrData)->first();
+        // Pipe-legado ou qualquer outro formato: busca exata por qr_data
+        return (clone $base)->where('qr_data', $qrData)->first();
     }
 }
