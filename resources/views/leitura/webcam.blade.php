@@ -24,20 +24,20 @@
                             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
                     <p class="mt-2 text-sm text-gray-600 font-medium">Clique ou arraste a foto do cartão</p>
-                    <p class="text-xs text-gray-400 mt-1">JPG ou PNG — até 10MB</p>
+                    <p class="text-xs text-gray-400 mt-1">JPG, PNG ou PDF — até 10MB</p>
                 </div>
 
                 <img id="preview-img" class="hidden max-w-full max-h-full object-contain pointer-events-none" alt="Preview">
                 <canvas id="canvas" class="hidden"></canvas>
             </div>
 
-            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/*" class="hidden"
+            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/*,application/pdf" class="hidden"
                 onchange="processarArquivo(this.files[0])">
 
             <div class="mt-3 flex flex-wrap items-center gap-2">
                 <button onclick="document.getElementById('fileInput').click()"
                     class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700 font-semibold">
-                    Selecionar Imagem
+                    Selecionar Arquivo
                 </button>
                 <button onclick="executarLeitura()" id="btnLer" disabled
                     class="bg-green-600 text-white px-5 py-2 rounded-full text-sm hover:bg-green-700 disabled:opacity-40 font-semibold">
@@ -106,10 +106,16 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.min.mjs" type="module"></script>
+<script type="module">
+import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.mjs';
+window._pdfjsLib = pdfjsLib;
+</script>
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
-let capturedB64 = null, qrData = null, qrLocation = null;
-let respostas = [], editandoQuestao = null, imagemOriginal = null;
+let capturedB64 = null, qrData = null, qrLocation = null, fetchQrInfoPromise = null;
+let respostas = [], editandoQuestao = null, imagemOriginal = null, omrMarcadores = 0;
 
 const canvas = document.getElementById('canvas');
 const ctx    = canvas.getContext('2d');
@@ -143,31 +149,174 @@ const GRID_ROW_H  = 28;   // altura de cada linha — fallback sem marcadores
 const GRID_CELL_W = 61;   // largura de cada coluna de letra (px)
 const BUBBLE_R    = 10;   // raio da bolinha (px)
 
+// Marcas de canto (quadrados 14×14px fixos nos cantos da página no canvas normalizado)
+// PDF: position:fixed top/bottom:8px left/right:8px → centro em (8+7, 8+7) = (15, 15)
+const CANTO_TL = { x: 15,  y: 15   };
+const CANTO_TR = { x: 779, y: 15   };  // 794 - 8 - 14 + 7 = 779
+const CANTO_BL = { x: 15,  y: 1107 };  // 1122 - 8 - 14 + 7 = 1107
+const CANTO_BR = { x: 779, y: 1107 };
+
+// ─── Correção de perspectiva (homografia) ────────────────────────────────────
+
+function solveLinear(A, b) {
+    const n = b.length;
+    const M = A.map((r, i) => [...r, b[i]]);
+    for (let c = 0; c < n; c++) {
+        let mx = c;
+        for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[mx][c])) mx = r;
+        [M[c], M[mx]] = [M[mx], M[c]];
+        for (let r = c + 1; r < n; r++) {
+            if (Math.abs(M[c][c]) < 1e-12) continue;
+            const f = M[r][c] / M[c][c];
+            for (let j = c; j <= n; j++) M[r][j] -= f * M[c][j];
+        }
+    }
+    const x = new Array(n);
+    for (let i = n - 1; i >= 0; i--) {
+        x[i] = M[i][n];
+        for (let j = i + 1; j < n; j++) x[i] -= M[i][j] * x[j];
+        x[i] /= M[i][i];
+    }
+    return x;
+}
+
+// Calcula homografia 3×3 via DLT a partir de 4 correspondências src→dst
+function calcHomografia(src, dst) {
+    const rows = [], rhs = [];
+    for (let i = 0; i < 4; i++) {
+        const [sx, sy, dx, dy] = [src[i].x, src[i].y, dst[i].x, dst[i].y];
+        rows.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy]); rhs.push(dx);
+        rows.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy]); rhs.push(dy);
+    }
+    const h = solveLinear(rows, rhs);
+    return [[h[0], h[1], h[2]], [h[3], h[4], h[5]], [h[6], h[7], 1]];
+}
+
+function invertM3(m) {
+    const [[a,b,c],[d,e,f],[g,h,k]] = m;
+    const det = a*(e*k-f*h) - b*(d*k-f*g) + c*(d*h-e*g);
+    if (Math.abs(det) < 1e-10) return null;
+    return [
+        [(e*k-f*h)/det, (c*h-b*k)/det, (b*f-c*e)/det],
+        [(f*g-d*k)/det, (a*k-c*g)/det, (c*d-a*f)/det],
+        [(d*h-e*g)/det, (b*g-a*h)/det, (a*e-b*d)/det],
+    ];
+}
+
+// Aplica homografia H ao canvas global por mapeamento inverso pixel a pixel
+function warpPerspectiva(H) {
+    const W = canvas.width, Hh = canvas.height;
+    const Hi = invertM3(H);
+    if (!Hi) return;
+    const src = ctx.getImageData(0, 0, W, Hh);
+    const dst = ctx.createImageData(W, Hh);
+    const sd = src.data, dd = dst.data;
+    for (let y = 0; y < Hh; y++) {
+        for (let x = 0; x < W; x++) {
+            const w  = Hi[2][0]*x + Hi[2][1]*y + Hi[2][2];
+            const sx = Math.round((Hi[0][0]*x + Hi[0][1]*y + Hi[0][2]) / w);
+            const sy = Math.round((Hi[1][0]*x + Hi[1][1]*y + Hi[1][2]) / w);
+            if (sx >= 0 && sx < W && sy >= 0 && sy < Hh) {
+                const si = (sy*W+sx)*4, di = (y*W+x)*4;
+                dd[di]=sd[si]; dd[di+1]=sd[si+1]; dd[di+2]=sd[si+2]; dd[di+3]=255;
+            }
+        }
+    }
+    ctx.putImageData(dst, 0, 0);
+}
+
+// Encontra centróide de pixels escuros num raio ao redor de (cx, cy) na imagem cinza
+function detectarCanto(gray, W, H, cx, cy, raio = 32) {
+    let sx = 0, sy = 0, cnt = 0;
+    for (let dy = -raio; dy <= raio; dy++) {
+        for (let dx = -raio; dx <= raio; dx++) {
+            const px = Math.round(cx + dx), py = Math.round(cy + dy);
+            if (px < 0 || py < 0 || px >= W || py >= H) continue;
+            if (gray[py * W + px] < 70) { sx += px; sy += py; cnt++; }
+        }
+    }
+    return cnt > 15 ? { x: Math.round(sx / cnt), y: Math.round(sy / cnt) } : null;
+}
+
+// Detecta as 4 marcas de canto; retorna objeto com nulls para as não encontradas
+function detectarCantosPagina(gray, W, H) {
+    return {
+        tl: detectarCanto(gray, W, H, CANTO_TL.x, CANTO_TL.y),
+        tr: detectarCanto(gray, W, H, CANTO_TR.x, CANTO_TR.y),
+        bl: detectarCanto(gray, W, H, CANTO_BL.x, CANTO_BL.y),
+        br: detectarCanto(gray, W, H, CANTO_BR.x, CANTO_BR.y),
+    };
+}
+
+// Aplica correção de perspectiva; para cantos não detectados usa posição esperada
+function corrigirPerspectiva(cantos) {
+    const dets = [cantos.tl, cantos.tr, cantos.bl, cantos.br];
+    const exps = [CANTO_TL, CANTO_TR, CANTO_BL, CANTO_BR];
+    const found = dets.filter(Boolean).length;
+    if (found < 2) return 0;  // poucos cantos → não corrige
+    const src = dets.map((d, i) => d ?? exps[i]);
+    const H = calcHomografia(src, exps);
+    warpPerspectiva(H);
+    return found;
+}
+
 // ─── Upload ───────────────────────────────────────────────────────────────────
 
 function processarArquivo(arquivo) {
     if (!arquivo) return;
-    if (!arquivo.type.startsWith('image/')) { showError('Selecione JPG ou PNG.'); return; }
-    if (arquivo.size > 10 * 1024 * 1024) { showError('Imagem muito grande. Máximo 10MB.'); return; }
+    if (arquivo.size > 10 * 1024 * 1024) { showError('Arquivo muito grande. Máximo 10MB.'); return; }
+
+    if (arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf')) {
+        renderizarPDF(arquivo).catch(e => showError('Erro ao processar PDF: ' + e.message));
+        return;
+    }
+
+    if (!arquivo.type.startsWith('image/')) { showError('Selecione JPG, PNG ou PDF.'); return; }
 
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-            imagemOriginal = img;
-            capturedB64    = e.target.result;
-            document.getElementById('preview-img').src = e.target.result;
-            document.getElementById('preview-img').classList.remove('hidden');
-            document.getElementById('upload-placeholder').classList.add('hidden');
-            document.getElementById('btnLer').disabled = false;
-            document.getElementById('error-box').classList.add('hidden');
-            setStatus('Imagem carregada. Detectando QR Code...');
-            detectarQRAutomatico();
+            _aplicarImagem(img, e.target.result, 'Imagem carregada. Detectando QR Code...');
         };
         img.onerror = () => showError('Não foi possível carregar a imagem.');
         img.src = e.target.result;
     };
     reader.readAsDataURL(arquivo);
+}
+
+async function renderizarPDF(arquivo) {
+    setStatus('Carregando PDF...');
+    const pdfjs = window._pdfjsLib;
+    if (!pdfjs) { showError('PDF.js ainda não carregou. Aguarde e tente novamente.'); return; }
+
+    const arrayBuffer = await arquivo.arrayBuffer();
+    const pdf  = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1);
+
+    // Renderiza em escala 2× para boa qualidade de OMR
+    const viewport = page.getViewport({ scale: 2.0 });
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width  = viewport.width;
+    offCanvas.height = viewport.height;
+    await page.render({ canvasContext: offCanvas.getContext('2d'), viewport }).promise;
+
+    const dataUrl = offCanvas.toDataURL('image/jpeg', 0.92);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
+    _aplicarImagem(img, dataUrl, 'PDF carregado. Detectando QR Code...');
+}
+
+function _aplicarImagem(img, dataUrl, statusMsg) {
+    imagemOriginal = img;
+    capturedB64    = dataUrl;
+    document.getElementById('preview-img').src = dataUrl;
+    document.getElementById('preview-img').classList.remove('hidden');
+    document.getElementById('upload-placeholder').classList.add('hidden');
+    document.getElementById('btnLer').disabled = false;
+    document.getElementById('error-box').classList.add('hidden');
+    setStatus(statusMsg);
+    detectarQRAutomatico();
 }
 
 // ─── Detecção de QR: multi-escala + binarização ───────────────────────────────
@@ -177,7 +326,10 @@ function detectarQRAutomatico() {
     if (qr) {
         qrData = qr;
         setStatus('QR detectado! Buscando informações do aluno...');
-        fetchQrInfo(qrData);
+        const p = fetchQrInfo(qrData);
+        fetchQrInfoPromise = p;
+        // Exibe erro no auto-detect sem suprimir rejeição de fetchQrInfoPromise
+        p.catch(e => showError(e.message));
     } else {
         setStatus('QR não detectado — tente uma foto com melhor iluminação ou mais próxima.');
     }
@@ -266,20 +418,20 @@ function normalizarCartao(img) {
 // ─── Busca de info do cartão ──────────────────────────────────────────────────
 
 async function fetchQrInfo(qr) {
-    try {
-        const res = await fetch('/api/leituras/qr-info', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-            body: JSON.stringify({ qr_data: qr })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Cartão não encontrado.');
-        }
-        exibirInfoCartao(await res.json());
-    } catch(e) {
-        showError(e.message);
+    console.log('[QR detectado]', qr);
+    const res = await fetch('/api/leituras/qr-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        body: JSON.stringify({ qr_data: qr })
+    });
+    if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        let msg;
+        try { const j = JSON.parse(body); msg = j.error || j.message; } catch (_) {}
+        console.error('[QR API erro]', res.status, body);
+        throw new Error(msg || `Erro ${res.status}: verifique o console para detalhes.`);
     }
+    exibirInfoCartao(await res.json());
 }
 
 function exibirInfoCartao(d) {
@@ -293,24 +445,66 @@ function exibirInfoCartao(d) {
 
 // ─── Execução da leitura OMR ──────────────────────────────────────────────────
 
-function executarLeitura() {
+async function executarLeitura() {
     if (!capturedB64) return;
 
     if (!qrData) {
         const qr = tentarDetectarQR(imagemOriginal);
-        if (qr) { qrData = qr; fetchQrInfo(qrData); }
-        else {
+        if (qr) {
+            qrData = qr;
+            setStatus('QR detectado! Buscando dados do aluno...');
+            fetchQrInfoPromise = fetchQrInfo(qrData);
+            // O await logo abaixo vai capturar erros — não precisa de .catch aqui
+        } else {
             showError('QR Code não encontrado. Tente uma foto com melhor iluminação ou mais próxima do cartão.');
             return;
         }
     }
 
+    // Aguarda fetchQrInfo terminar antes de prosseguir — evita race condition
+    if (fetchQrInfoPromise && !window._totalQuestoes) {
+        setStatus('Aguardando dados da prova...');
+        try {
+            await fetchQrInfoPromise;
+        } catch (e) {
+            showError(e.message);
+            return;
+        }
+    }
+
+    if (!window._totalQuestoes) {
+        return;  // erro já exibido pela chamada anterior de fetchQrInfo
+    }
+
     setStatus('Normalizando imagem e lendo marcações...');
     const normalizado = normalizarCartao(imagemOriginal);
+    omrMarcadores = 0;
+
+    // Correção de perspectiva pelas marcas de canto (após normalização por QR)
+    let cantosCorrigidos = 0;
+    if (normalizado) {
+        const W = canvas.width, Hh = canvas.height;
+        const imgData = ctx.getImageData(0, 0, W, Hh).data;
+        const grayTemp = new Float32Array(W * Hh);
+        for (let i = 0; i < W * Hh; i++)
+            grayTemp[i] = 0.299 * imgData[i*4] + 0.587 * imgData[i*4+1] + 0.114 * imgData[i*4+2];
+        const cantos = detectarCantosPagina(grayTemp, W, Hh);
+        cantosCorrigidos = corrigirPerspectiva(cantos);
+    }
+
     respostas = lerRespostasOMR(canvas, normalizado);
     renderRespostas();
     document.getElementById('btnEnviar').disabled = false;
-    setStatus('Leitura concluída. Revise as respostas e clique em Confirmar Leitura.');
+
+    const total = window._totalQuestoes || 30;
+    const half  = Math.ceil(total / 2);
+    const msgCantos   = cantosCorrigidos > 0 ? ` | perspectiva corrigida (${cantosCorrigidos}/4 cantos)` : '';
+    const msgMarcador = normalizado && omrMarcadores > 0
+        ? `${omrMarcadores} de ${half} marcadores detectados — leitura linha a linha ✓${msgCantos}`
+        : normalizado
+            ? `Marcadores não detectados — usando posições estimadas.${msgCantos}`
+            : 'Imagem não normalizada — posições percentuais (menos preciso).';
+    setStatus('Leitura concluída. ' + msgMarcador);
 }
 
 // ─── Detecção de linhas pelos marcadores negros ───────────────────────────────
@@ -318,9 +512,9 @@ function executarLeitura() {
 // Retorna array com o Y central de cada marcador encontrado (um por linha da grade).
 
 function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
-    const SCAN_R  = 5;    // largura de varredura ±5px em torno de MARKER_X
-    const THRESH  = 80;   // pixels abaixo disso são "escuros"
-    const MIN_RUN = 8;    // mínimo de pixels escuros consecutivos para ser um marcador
+    const SCAN_R  = 5;   // varre ±5px em torno de MARKER_X
+    const THRESH  = 80;  // limiar de escuridão (0-255)
+    const MIN_RUN = 8;   // altura mínima do bloco em pixels
 
     const runs = [];
     let inRun = false, runStart = 0;
@@ -331,8 +525,7 @@ function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
             const x = Math.min(W - 1, Math.max(0, MARKER_X + dx));
             if (gray[y * W + x] < THRESH) darkCnt++;
         }
-        const isDark = darkCnt >= SCAN_R; // maioria dos pixels na faixa é escura
-
+        const isDark = darkCnt >= SCAN_R;
         if (isDark && !inRun) { inRun = true; runStart = y; }
         else if (!isDark && inRun) {
             if (y - runStart >= MIN_RUN)
@@ -343,7 +536,24 @@ function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
     if (inRun && H - runStart >= MIN_RUN)
         runs.push(Math.round((runStart + H - 1) / 2));
 
-    return runs.length >= nLinhas ? runs.slice(0, nLinhas) : null;
+    omrMarcadores = runs.length;
+
+    // Detectou todos: usa diretamente
+    if (runs.length >= nLinhas) return runs.slice(0, nLinhas);
+
+    // Detectou ao menos 2: interpola as linhas faltantes pelo espaçamento médio
+    if (runs.length >= 2) {
+        const spacing = (runs[runs.length - 1] - runs[0]) / (runs.length - 1);
+        const base    = runs[0];
+        return Array.from({ length: nLinhas }, (_, i) => Math.round(base + i * spacing));
+    }
+
+    // Detectou só 1: extrapola usando GRID_ROW_H conhecido
+    if (runs.length === 1) {
+        return Array.from({ length: nLinhas }, (_, i) => Math.round(runs[0] + i * GRID_ROW_H));
+    }
+
+    return null; // nenhum marcador → usa fallback calculado
 }
 
 // ─── Algoritmo OMR ────────────────────────────────────────────────────────────
@@ -374,7 +584,7 @@ function lerRespostasOMR(c, normalizado) {
         ];
         cellW    = GRID_CELL_W;
         R_BUBBLE = BUBBLE_R;
-        FILL_PCT = 0.20;
+        FILL_PCT = 0.15;
 
         // Tenta localizar marcadores para Y preciso; fallback calculado
         const detected = detectarLinhasPorMarcadores(gray, W, H, halfRows);
@@ -519,7 +729,8 @@ async function enviarLeitura() {
 // ─── Reset / utils ────────────────────────────────────────────────────────────
 
 function resetar() {
-    qrData = null; capturedB64 = null; respostas = []; imagemOriginal = null; qrLocation = null;
+    qrData = null; capturedB64 = null; respostas = []; imagemOriginal = null; qrLocation = null; omrMarcadores = 0;
+    fetchQrInfoPromise = null; window._totalQuestoes = null;
     document.getElementById('respostas-grid').innerHTML = '';
     ['qr-info','resultado-box','error-box'].forEach(id => document.getElementById(id).classList.add('hidden'));
     document.getElementById('btnEnviar').disabled = true;

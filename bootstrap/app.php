@@ -12,6 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->statefulApi();  // permite auth:sanctum via sessão web (cookie)
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,
         ]);

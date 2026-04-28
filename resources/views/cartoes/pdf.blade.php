@@ -83,6 +83,13 @@
 </head>
 <body>
 
+{{-- Marcas de canto para correção de perspectiva (position:fixed = cantos da página em dompdf) --}}
+{{-- Posição no canvas normalizado 794×1122: TL(15,15) TR(779,15) BL(15,1107) BR(779,1107) --}}
+<div style="position:fixed;top:8px;left:8px;width:14px;height:14px;background:#000;"></div>
+<div style="position:fixed;top:8px;right:8px;width:14px;height:14px;background:#000;"></div>
+<div style="position:fixed;bottom:8px;left:8px;width:14px;height:14px;background:#000;"></div>
+<div style="position:fixed;bottom:8px;right:8px;width:14px;height:14px;background:#000;"></div>
+
 {{-- Cabeçalho --}}
 <div class="header">
     <h2>{{ $prova->titulo }}</h2>
