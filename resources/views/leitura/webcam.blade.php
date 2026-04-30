@@ -139,12 +139,13 @@ const QR_SIZE  = 110;
 const QR_LEFT  = 28;
 const QR_TOP   = 130;
 
-// Coluna de marcadores de linha (blocos negros)
-const MARKER_X = 27;   // x do centro da coluna de marcadores no PDF normalizado
+// Colunas de marcadores de linha (blocos negros)
+const MARKER_X   = 27;   // centro do marcador esquerdo: body_pad(20) + mc/2(7) = 27
+const MARKER_R_X = 407;  // centro do marcador direito: body_pad(20) + mc(14) + Nº(61) + 5*61(305) + mc/2(7) = 407
 
 // Coordenadas do grid OMR no PDF (em px de saída)
-const GRID_LCOL_X = 67;   // cx_A = 65 + halfCell(24) = 89
-const GRID_RCOL_X = 441;  // cx_A = 441 + halfCell(24) = 465
+const GRID_LCOL_X = 67;   // cx_A = 67 + halfCell(24) = 91
+const GRID_RCOL_X = 397;  // 445 - 50%*CELL(28) → cx_A = 417+28 = 445
 const GRID_ROW1_Y = 296;  // y do topo da 1ª linha de dados (fallback)
 const GRID_ROW_H  = 28;   // altura de cada linha — fallback sem marcadores
 const GRID_CELL_W = 55;   // 61 * 0.8 — espaçamento reduzido em 20%
@@ -517,13 +518,11 @@ async function executarLeitura() {
 // Varre a coluna X=MARKER_X na imagem normalizada procurando retângulos pretos.
 // Retorna array com o Y central de cada marcador encontrado (um por linha da grade).
 
-function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
-    const SCAN_R  = 8;   // varre ±8px em torno de MARKER_X (mais tolerante para fotos)
-    const THRESH  = 110; // limiar de escuridão — fotos têm tinta como cinza ~80-100
-    const MIN_RUN = 8;   // altura mínima do bloco em pixels
-    // Ignora tudo acima da grade (cabeçalho + bloco de identificação ≈ 270px)
-    // Evita que o QR Code ou textos escuros sejam confundidos com marcadores de linha.
-    const MIN_Y   = 270;
+function detectarLinhasPorMarcadores(gray, W, H, nLinhas, markerX = MARKER_X) {
+    const SCAN_R  = 8;   // varre ±8px em torno do markerX
+    const THRESH  = 110;
+    const MIN_RUN = 8;
+    const MIN_Y   = 270; // ignora cabeçalho + bloco de identificação
 
     const runs = [];
     let inRun = false, runStart = 0;
@@ -531,7 +530,7 @@ function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
     for (let y = MIN_Y; y < H; y++) {
         let darkCnt = 0;
         for (let dx = -SCAN_R; dx <= SCAN_R; dx++) {
-            const x = Math.min(W - 1, Math.max(0, MARKER_X + dx));
+            const x = Math.min(W - 1, Math.max(0, markerX + dx));
             if (gray[y * W + x] < THRESH) darkCnt++;
         }
         const isDark = darkCnt >= 4;
@@ -545,24 +544,21 @@ function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
     if (inRun && H - runStart >= MIN_RUN)
         runs.push(Math.round((runStart + H - 1) / 2));
 
-    omrMarcadores = runs.length;
+    if (markerX === MARKER_X) omrMarcadores = runs.length;
 
-    // Detectou todos: usa diretamente
     if (runs.length >= nLinhas) return runs.slice(0, nLinhas);
 
-    // Detectou ao menos 2: interpola as linhas faltantes pelo espaçamento médio
     if (runs.length >= 2) {
         const spacing = (runs[runs.length - 1] - runs[0]) / (runs.length - 1);
         const base    = runs[0];
         return Array.from({ length: nLinhas }, (_, i) => Math.round(base + i * spacing));
     }
 
-    // Detectou só 1: extrapola usando GRID_ROW_H conhecido
     if (runs.length === 1) {
         return Array.from({ length: nLinhas }, (_, i) => Math.round(runs[0] + i * GRID_ROW_H));
     }
 
-    return null; // nenhum marcador → usa fallback calculado
+    return null;
 }
 
 // ─── Algoritmo OMR ────────────────────────────────────────────────────────────
@@ -595,11 +591,13 @@ function lerRespostasOMR(c, normalizado) {
         R_BUBBLE = BUBBLE_R;
         FILL_PCT = 0.40;
 
-        // Tenta localizar marcadores para Y preciso; fallback calculado
-        const detected = detectarLinhasPorMarcadores(gray, W, H, halfRows);
-        rowYsFn = detected
-            ? (row) => detected[row]
-            : (row) => GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
+        // Detecta marcadores de ambas as colunas para Y preciso por linha
+        const detL = detectarLinhasPorMarcadores(gray, W, H, halfRows,          MARKER_X);
+        const detR = detectarLinhasPorMarcadores(gray, W, H, totalQ - halfRows, MARKER_R_X);
+        const fallbackY = (row) => GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
+
+        cols[0].rowYsFn = detL ? (row) => detL[row] : fallbackY;
+        cols[1].rowYsFn = detR ? (row) => detR[row] : (detL ? (row) => detL[row] : fallbackY);
     } else {
         cols     = [
             { startX: Math.round(W * 0.08), offset: 0,         rows: halfRows },
@@ -618,7 +616,7 @@ function lerRespostasOMR(c, normalizado) {
 
     for (const col of cols) {
         for (let row = 0; row < col.rows; row++) {
-            const cy  = rowYsFn(row);
+            const cy  = col.rowYsFn ? col.rowYsFn(row) : rowYsFn(row);
             const num = col.offset + row + 1;
             const marcados = [], confiancas = [];
 
@@ -688,36 +686,40 @@ function mostrarDebugOMR(normalizado) {
 
     const totalQ   = window._totalQuestoes || 30;
     const halfRows = Math.ceil(totalQ / 2);
-    const detected = detectarLinhasPorMarcadores(gray, W, H, halfRows);
+    const detL = detectarLinhasPorMarcadores(gray, W, H, halfRows,          MARKER_X);
+    const detR = detectarLinhasPorMarcadores(gray, W, H, totalQ - halfRows, MARKER_R_X);
+    const fallbackY = (row) => GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
 
     ctx.save();
 
-    // Linha tracejada na coluna de marcadores
-    ctx.strokeStyle = 'rgba(255,80,80,0.7)';
+    // Linhas tracejadas nas duas colunas de marcadores
     ctx.lineWidth = 1.5;
     ctx.setLineDash([5, 4]);
-    ctx.beginPath();
-    ctx.moveTo(MARKER_X, 270); ctx.lineTo(MARKER_X, H - 30);
-    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,80,80,0.7)';
+    ctx.beginPath(); ctx.moveTo(MARKER_X,   270); ctx.lineTo(MARKER_X,   H - 30); ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,0,200,0.7)';
+    ctx.beginPath(); ctx.moveTo(MARKER_R_X, 270); ctx.lineTo(MARKER_R_X, H - 30); ctx.stroke();
     ctx.setLineDash([]);
 
-    // Marcadores detectados (retângulos azuis)
-    if (detected) {
+    // Marcadores detectados: azul = esquerda, roxo = direita
+    if (detL) {
         ctx.fillStyle = 'rgba(0,100,255,0.55)';
-        for (const my of detected) ctx.fillRect(5, my - 3, MARKER_X * 2, 6);
+        for (const my of detL) ctx.fillRect(5, my - 3, MARKER_X * 2, 6);
+    }
+    if (detR) {
+        ctx.fillStyle = 'rgba(160,0,220,0.45)';
+        for (const my of detR) ctx.fillRect(MARKER_R_X - 14, my - 3, 28, 6);
     }
 
     const cols = [
-        { startX: GRID_LCOL_X, offset: 0,         rows: halfRows },
-        { startX: GRID_RCOL_X, offset: halfRows,   rows: totalQ - halfRows },
+        { startX: GRID_LCOL_X, offset: 0,         rows: halfRows,          rowYsFn: detL ? (r) => detL[r] : fallbackY },
+        { startX: GRID_RCOL_X, offset: halfRows,   rows: totalQ - halfRows, rowYsFn: detR ? (r) => detR[r] : (detL ? (r) => detL[r] : fallbackY) },
     ];
     const LETRAS = ['A','B','C','D','E'];
 
     for (const col of cols) {
         for (let row = 0; row < col.rows; row++) {
-            const cy  = detected
-                ? detected[row]
-                : GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
+            const cy = col.rowYsFn(row);
             const qNum = col.offset + row + 1;
             const resp = respostas.find(r => r.questao_numero === qNum);
 

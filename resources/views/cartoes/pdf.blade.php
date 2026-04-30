@@ -151,7 +151,7 @@
             <th class="mc"></th>
             <th>Nº</th>
             <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>
-            <th style="width:10px">&nbsp;</th>
+            <th class="mc"></th>
             <th>Nº</th>
             <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>
         </tr>
@@ -166,7 +166,7 @@
             @foreach (['A','B','C','D','E'] as $l)
             <td><span class="circle">{{ $l }}</span></td>
             @endforeach
-            <td></td>
+            <td class="mc"><div class="marc"></div></td>
             @if ($j <= $prova->total_questoes)
             <td class="num">{{ $j }}</td>
             @foreach (['A','B','C','D','E'] as $l)
