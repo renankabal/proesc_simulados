@@ -143,11 +143,11 @@ const QR_TOP   = 130;
 const MARKER_X = 27;   // x do centro da coluna de marcadores no PDF normalizado
 
 // Coordenadas do grid OMR no PDF (em px de saída)
-const GRID_LCOL_X = 65;   // 77 - 20%*CELL(12) → cx_A = 65+30 = 95
-const GRID_RCOL_X = 441;  // 453 - 20%*CELL(12) → cx_A = 441+30 = 471
+const GRID_LCOL_X = 65;   // cx_A = 65 + halfCell(24) = 89
+const GRID_RCOL_X = 441;  // cx_A = 441 + halfCell(24) = 465
 const GRID_ROW1_Y = 296;  // y do topo da 1ª linha de dados (fallback)
 const GRID_ROW_H  = 28;   // altura de cada linha — fallback sem marcadores
-const GRID_CELL_W = 61;   // largura de cada coluna de letra (px)
+const GRID_CELL_W = 55;   // 61 * 0.8 — espaçamento reduzido em 20%
 // BUBBLE_R=9: amostra quase todo o interior (r≈8.5 é o interior sem borda).
 // Com r<9, as letras impressas (A,B,C,D,E) representam ~21-27% da área total,
 // claramente abaixo de FILL_PCT=0.40. Caneta preenche ~65-85%, muito acima.
