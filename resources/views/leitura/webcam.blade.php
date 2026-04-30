@@ -591,13 +591,14 @@ function lerRespostasOMR(c, normalizado) {
         R_BUBBLE = BUBBLE_R;
         FILL_PCT = 0.40;
 
-        // Detecta marcadores de ambas as colunas para Y preciso por linha
-        const detL = detectarLinhasPorMarcadores(gray, W, H, halfRows,          MARKER_X);
-        const detR = detectarLinhasPorMarcadores(gray, W, H, totalQ - halfRows, MARKER_R_X);
+        // Ambas as colunas estão na mesma linha da tabela → mesmo Y.
+        // Usa sempre os marcadores da coluna esquerda (detL) como âncora de Y.
+        const detL = detectarLinhasPorMarcadores(gray, W, H, halfRows, MARKER_X);
         const fallbackY = (row) => GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
+        const rowYsFn = detL ? (row) => detL[row] : fallbackY;
 
-        cols[0].rowYsFn = detL ? (row) => detL[row] : fallbackY;
-        cols[1].rowYsFn = detR ? (row) => detR[row] : (detL ? (row) => detL[row] : fallbackY);
+        cols[0].rowYsFn = rowYsFn;
+        cols[1].rowYsFn = rowYsFn;
     } else {
         cols     = [
             { startX: Math.round(W * 0.08), offset: 0,         rows: halfRows },
@@ -686,8 +687,7 @@ function mostrarDebugOMR(normalizado) {
 
     const totalQ   = window._totalQuestoes || 30;
     const halfRows = Math.ceil(totalQ / 2);
-    const detL = detectarLinhasPorMarcadores(gray, W, H, halfRows,          MARKER_X);
-    const detR = detectarLinhasPorMarcadores(gray, W, H, totalQ - halfRows, MARKER_R_X);
+    const detL = detectarLinhasPorMarcadores(gray, W, H, halfRows, MARKER_X);
     const fallbackY = (row) => GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
 
     ctx.save();
@@ -701,19 +701,16 @@ function mostrarDebugOMR(normalizado) {
     ctx.beginPath(); ctx.moveTo(MARKER_R_X, 270); ctx.lineTo(MARKER_R_X, H - 30); ctx.stroke();
     ctx.setLineDash([]);
 
-    // Marcadores detectados: azul = esquerda, roxo = direita
+    // Marcadores detectados (azul) — mesma âncora Y para ambas as colunas
     if (detL) {
         ctx.fillStyle = 'rgba(0,100,255,0.55)';
         for (const my of detL) ctx.fillRect(5, my - 3, MARKER_X * 2, 6);
     }
-    if (detR) {
-        ctx.fillStyle = 'rgba(160,0,220,0.45)';
-        for (const my of detR) ctx.fillRect(MARKER_R_X - 14, my - 3, 28, 6);
-    }
 
+    const rowYsFnDbg = detL ? (r) => detL[r] : fallbackY;
     const cols = [
-        { startX: GRID_LCOL_X, offset: 0,         rows: halfRows,          rowYsFn: detL ? (r) => detL[r] : fallbackY },
-        { startX: GRID_RCOL_X, offset: halfRows,   rows: totalQ - halfRows, rowYsFn: detR ? (r) => detR[r] : (detL ? (r) => detL[r] : fallbackY) },
+        { startX: GRID_LCOL_X, offset: 0,         rows: halfRows,          rowYsFn: rowYsFnDbg },
+        { startX: GRID_RCOL_X, offset: halfRows,   rows: totalQ - halfRows, rowYsFn: rowYsFnDbg },
     ];
     const LETRAS = ['A','B','C','D','E'];
 
