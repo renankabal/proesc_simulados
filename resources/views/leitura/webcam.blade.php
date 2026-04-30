@@ -142,12 +142,16 @@ const QR_TOP   = 130;
 const MARKER_X = 27;   // x do centro da coluna de marcadores no PDF normalizado
 
 // Coordenadas do grid OMR no PDF (em px de saída)
-const GRID_LCOL_X = 95;   // x do início das letras (coluna esquerda)
-const GRID_RCOL_X = 471;  // x do início das letras (coluna direita)
+const GRID_LCOL_X = 65;   // x do início das letras (coluna esquerda) — dompdf coloca circle na borda esq da td
+const GRID_RCOL_X = 300;  // x do início das letras (coluna direita)
 const GRID_ROW1_Y = 296;  // y do topo da 1ª linha de dados (fallback)
 const GRID_ROW_H  = 28;   // altura de cada linha — fallback sem marcadores
 const GRID_CELL_W = 61;   // largura de cada coluna de letra (px)
-const BUBBLE_R    = 10;   // raio da bolinha (px)
+// BUBBLE_R=9: amostra quase todo o interior (r≈8.5 é o interior sem borda).
+// Com r<9, as letras impressas (A,B,C,D,E) representam ~21-27% da área total,
+// claramente abaixo de FILL_PCT=0.40. Caneta preenche ~65-85%, muito acima.
+// A fina fatia de borda r=8.75-9 (~14 px) impacta apenas +5% do total — seguro.
+const BUBBLE_R    = 9;    // raio de amostragem — equilibra letra impressa vs caneta
 
 // Marcas de canto (quadrados 14×14px fixos nos cantos da página no canvas normalizado)
 // PDF: position:fixed top/bottom:8px left/right:8px → centro em (8+7, 8+7) = (15, 15)
@@ -232,7 +236,7 @@ function detectarCanto(gray, W, H, cx, cy, raio = 32) {
         for (let dx = -raio; dx <= raio; dx++) {
             const px = Math.round(cx + dx), py = Math.round(cy + dy);
             if (px < 0 || py < 0 || px >= W || py >= H) continue;
-            if (gray[py * W + px] < 70) { sx += px; sy += py; cnt++; }
+            if (gray[py * W + px] < 100) { sx += px; sy += py; cnt++; }
         }
     }
     return cnt > 15 ? { x: Math.round(sx / cnt), y: Math.round(sy / cnt) } : null;
@@ -494,15 +498,16 @@ async function executarLeitura() {
 
     respostas = lerRespostasOMR(canvas, normalizado);
     renderRespostas();
+    mostrarDebugOMR(normalizado);
     document.getElementById('btnEnviar').disabled = false;
 
     const total = window._totalQuestoes || 30;
     const half  = Math.ceil(total / 2);
     const msgCantos   = cantosCorrigidos > 0 ? ` | perspectiva corrigida (${cantosCorrigidos}/4 cantos)` : '';
     const msgMarcador = normalizado && omrMarcadores > 0
-        ? `${omrMarcadores} de ${half} marcadores detectados — leitura linha a linha ✓${msgCantos}`
+        ? `${omrMarcadores}/${half} marcadores ✓${msgCantos} | debug: verde=marcado, vermelho=vazio, azul=marcador`
         : normalizado
-            ? `Marcadores não detectados — usando posições estimadas.${msgCantos}`
+            ? `Marcadores NÃO detectados — posições estimadas.${msgCantos} | Verifique círculos no preview`
             : 'Imagem não normalizada — posições percentuais (menos preciso).';
     setStatus('Leitura concluída. ' + msgMarcador);
 }
@@ -512,8 +517,8 @@ async function executarLeitura() {
 // Retorna array com o Y central de cada marcador encontrado (um por linha da grade).
 
 function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
-    const SCAN_R  = 5;   // varre ±5px em torno de MARKER_X
-    const THRESH  = 80;  // limiar de escuridão (0-255)
+    const SCAN_R  = 8;   // varre ±8px em torno de MARKER_X (mais tolerante para fotos)
+    const THRESH  = 110; // limiar de escuridão — fotos têm tinta como cinza ~80-100
     const MIN_RUN = 8;   // altura mínima do bloco em pixels
 
     const runs = [];
@@ -525,7 +530,7 @@ function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
             const x = Math.min(W - 1, Math.max(0, MARKER_X + dx));
             if (gray[y * W + x] < THRESH) darkCnt++;
         }
-        const isDark = darkCnt >= SCAN_R;
+        const isDark = darkCnt >= 4;
         if (isDark && !inRun) { inRun = true; runStart = y; }
         else if (!isDark && inRun) {
             if (y - runStart >= MIN_RUN)
@@ -584,7 +589,7 @@ function lerRespostasOMR(c, normalizado) {
         ];
         cellW    = GRID_CELL_W;
         R_BUBBLE = BUBBLE_R;
-        FILL_PCT = 0.15;
+        FILL_PCT = 0.40;
 
         // Tenta localizar marcadores para Y preciso; fallback calculado
         const detected = detectarLinhasPorMarcadores(gray, W, H, halfRows);
@@ -628,7 +633,10 @@ function lerRespostasOMR(c, normalizado) {
                         sumBg += gray[py * W + px]; cntBg++;
                     }
                 }
-                const thresh = (cntBg > 0 ? sumBg / cntBg : 220) * 0.65;
+                // 0.75 de fundo: capta tinta de caneta (cinza 50-140) mesmo em fotos
+                // levemente subexpostas; BUBBLE_R=8 garante que a borda impressa
+                // não está no interior amostrado, eliminando falsos positivos.
+                const thresh = (cntBg > 0 ? sumBg / cntBg : 220) * 0.75;
 
                 // Pixels escuros dentro da bolinha
                 let dark = 0, total = 0;
@@ -657,6 +665,86 @@ function lerRespostasOMR(c, normalizado) {
         }
     }
     return result;
+}
+
+// ─── Overlay de diagnóstico OMR ───────────────────────────────────────────────
+// Desenha círculos nos pontos de amostragem de cada bolinha sobre o canvas
+// normalizado. Verde = marcado, vermelho/laranja = vazio/duplo, azul = marcadores.
+
+function mostrarDebugOMR(normalizado) {
+    if (!normalizado) return;
+
+    const W = canvas.width, H = canvas.height;
+    const imgData = ctx.getImageData(0, 0, W, H);
+    const gray = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+        const d = imgData.data;
+        gray[i] = 0.299 * d[i*4] + 0.587 * d[i*4+1] + 0.114 * d[i*4+2];
+    }
+
+    const totalQ   = window._totalQuestoes || 30;
+    const halfRows = Math.ceil(totalQ / 2);
+    const detected = detectarLinhasPorMarcadores(gray, W, H, halfRows);
+
+    ctx.save();
+
+    // Linha tracejada na coluna de marcadores
+    ctx.strokeStyle = 'rgba(255,80,80,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(MARKER_X, 200); ctx.lineTo(MARKER_X, H - 30);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Marcadores detectados (retângulos azuis)
+    if (detected) {
+        ctx.fillStyle = 'rgba(0,100,255,0.55)';
+        for (const my of detected) ctx.fillRect(5, my - 3, MARKER_X * 2, 6);
+    }
+
+    const cols = [
+        { startX: GRID_LCOL_X, offset: 0,         rows: halfRows },
+        { startX: GRID_RCOL_X, offset: halfRows,   rows: totalQ - halfRows },
+    ];
+    const LETRAS = ['A','B','C','D','E'];
+
+    for (const col of cols) {
+        for (let row = 0; row < col.rows; row++) {
+            const cy  = detected
+                ? detected[row]
+                : GRID_ROW1_Y + row * GRID_ROW_H + Math.round(GRID_ROW_H / 2);
+            const qNum = col.offset + row + 1;
+            const resp = respostas.find(r => r.questao_numero === qNum);
+
+            // Número da questão
+            ctx.fillStyle = 'rgba(180,0,0,0.9)';
+            ctx.font = 'bold 8px Arial';
+            ctx.fillText('' + qNum, col.startX - 28, cy + 3);
+
+            for (let alt = 0; alt < 5; alt++) {
+                const cx      = col.startX + alt * GRID_CELL_W + Math.round(GRID_CELL_W / 2);
+                const letra   = LETRAS[alt];
+                const isMark  = resp && resp.marcacao === letra;
+                const isDouble= resp && resp.dupla_marcacao;
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, BUBBLE_R, 0, Math.PI * 2);
+                ctx.lineWidth = isMark ? 3 : 1.5;
+                ctx.strokeStyle = isMark   ? '#00dd00'
+                                : isDouble ? '#ff8800'
+                                           : 'rgba(255,60,60,0.55)';
+                ctx.stroke();
+            }
+        }
+    }
+    ctx.restore();
+
+    // Exibe canvas no lugar da imagem de preview
+    canvas.style.maxWidth  = '100%';
+    canvas.style.maxHeight = '100%';
+    canvas.classList.remove('hidden');
+    document.getElementById('preview-img').classList.add('hidden');
 }
 
 // ─── Grid de respostas ────────────────────────────────────────────────────────
@@ -735,6 +823,7 @@ function resetar() {
     ['qr-info','resultado-box','error-box'].forEach(id => document.getElementById(id).classList.add('hidden'));
     document.getElementById('btnEnviar').disabled = true;
     document.getElementById('btnLer').disabled    = true;
+    canvas.classList.add('hidden');
     document.getElementById('preview-img').classList.add('hidden');
     document.getElementById('preview-img').src    = '';
     document.getElementById('upload-placeholder').classList.remove('hidden');
