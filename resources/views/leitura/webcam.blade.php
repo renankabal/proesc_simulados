@@ -143,8 +143,8 @@ const QR_TOP   = 130;
 const MARKER_X = 27;   // x do centro da coluna de marcadores no PDF normalizado
 
 // Coordenadas do grid OMR no PDF (em px de saída)
-const GRID_LCOL_X = 77;   // (td_A_start(95) + 12 - halfCell(30)) → cx_A = 77+30 = 107
-const GRID_RCOL_X = 453;  // (td_A_right(471) + 12 - halfCell(30)) → cx_A = 453+30 = 483
+const GRID_LCOL_X = 65;   // 77 - 20%*CELL(12) → cx_A = 65+30 = 95
+const GRID_RCOL_X = 441;  // 453 - 20%*CELL(12) → cx_A = 441+30 = 471
 const GRID_ROW1_Y = 296;  // y do topo da 1ª linha de dados (fallback)
 const GRID_ROW_H  = 28;   // altura de cada linha — fallback sem marcadores
 const GRID_CELL_W = 61;   // largura de cada coluna de letra (px)
