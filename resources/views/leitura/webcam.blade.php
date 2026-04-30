@@ -127,9 +127,10 @@ const ctx    = canvas.getContext('2d');
 // Marcadores negros (10×18 px) na 1ª coluna da tabela:
 //   MARKER_X = body_pad(20) + marker_col/2(7) = 27px
 //
-// Colunas de letras:
-//   LCOL_X = body_pad(20) + marker(14) + Nº(61) = 95px
-//   RCOL_X = LCOL_X + 5*61 + spacer(10) + Nº(61) = 471px
+// Colunas de letras (dompdf: display:inline-block fica na borda esq da td, não centrado):
+//   bubble_center = td_start + padding(2) + radius(10) = td_start + 12
+//   LCOL_X = td_A_start(95) + 12 - halfCell(30) = 77
+//   RCOL_X = td_A_right_start(471) + 12 - halfCell(30) = 453
 
 const PDF_W = 794, PDF_H = 1122;
 
@@ -142,8 +143,8 @@ const QR_TOP   = 130;
 const MARKER_X = 27;   // x do centro da coluna de marcadores no PDF normalizado
 
 // Coordenadas do grid OMR no PDF (em px de saída)
-const GRID_LCOL_X = 65;   // x do início das letras (coluna esquerda) — dompdf coloca circle na borda esq da td
-const GRID_RCOL_X = 300;  // x do início das letras (coluna direita)
+const GRID_LCOL_X = 77;   // (td_A_start(95) + 12 - halfCell(30)) → cx_A = 77+30 = 107
+const GRID_RCOL_X = 453;  // (td_A_right(471) + 12 - halfCell(30)) → cx_A = 453+30 = 483
 const GRID_ROW1_Y = 296;  // y do topo da 1ª linha de dados (fallback)
 const GRID_ROW_H  = 28;   // altura de cada linha — fallback sem marcadores
 const GRID_CELL_W = 61;   // largura de cada coluna de letra (px)
@@ -520,11 +521,14 @@ function detectarLinhasPorMarcadores(gray, W, H, nLinhas) {
     const SCAN_R  = 8;   // varre ±8px em torno de MARKER_X (mais tolerante para fotos)
     const THRESH  = 110; // limiar de escuridão — fotos têm tinta como cinza ~80-100
     const MIN_RUN = 8;   // altura mínima do bloco em pixels
+    // Ignora tudo acima da grade (cabeçalho + bloco de identificação ≈ 270px)
+    // Evita que o QR Code ou textos escuros sejam confundidos com marcadores de linha.
+    const MIN_Y   = 270;
 
     const runs = [];
     let inRun = false, runStart = 0;
 
-    for (let y = 0; y < H; y++) {
+    for (let y = MIN_Y; y < H; y++) {
         let darkCnt = 0;
         for (let dx = -SCAN_R; dx <= SCAN_R; dx++) {
             const x = Math.min(W - 1, Math.max(0, MARKER_X + dx));
@@ -693,7 +697,7 @@ function mostrarDebugOMR(normalizado) {
     ctx.lineWidth = 1.5;
     ctx.setLineDash([5, 4]);
     ctx.beginPath();
-    ctx.moveTo(MARKER_X, 200); ctx.lineTo(MARKER_X, H - 30);
+    ctx.moveTo(MARKER_X, 270); ctx.lineTo(MARKER_X, H - 30);
     ctx.stroke();
     ctx.setLineDash([]);
 

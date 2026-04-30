@@ -73,6 +73,8 @@
   /* Marcadores de linha para âncora OMR */
   th.mc, td.mc { width: 14px; border: none; background: transparent; padding: 0 2px; }
   .marc { display: block; width: 10px; height: 18px; background: #000; margin: 0 auto; }
+  /* Separador a cada 5 questões */
+  tr.grupo-fim td { border-bottom: 2px solid #6dba8a; }
 
   /* Rodapé */
   .instructions { font-size: 8pt; color: #666; margin-top: 10px; border-top: 1px solid #c3e6cf; padding-top: 6px; }
@@ -157,8 +159,8 @@
     <tbody>
         @php $half = (int) ceil($prova->total_questoes / 2); @endphp
         @for ($i = 1; $i <= $half; $i++)
-        @php $j = $i + $half; @endphp
-        <tr>
+        @php $j = $i + $half; $fimGrupo = ($i % 5 === 0); @endphp
+        <tr class="{{ $fimGrupo ? 'grupo-fim' : '' }}">
             <td class="mc"><div class="marc"></div></td>
             <td class="num">{{ $i }}</td>
             @foreach (['A','B','C','D','E'] as $l)
